@@ -1,7 +1,7 @@
 import { Resend } from "resend";
 
 const resendApiKey = process.env.RESEND_API_KEY;
-const resendFromEmail = process.env.RESEND_FROM_EMAIL || "notifications@medserve.ng";
+const resendFromEmail = process.env.RESEND_FROM_EMAIL || "notifications@medserve.takeoutmedia.xyz";
 
 const resend = resendApiKey ? new Resend(resendApiKey) : null;
 
