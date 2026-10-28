@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { signOut } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import { cn } from "cn";
 import { Check, HeartPulse, LogOut, Shield, User } from "lucide-react";
 
@@ -37,9 +37,20 @@ export function AccountSwitcher({
   const pathname = usePathname();
   const isPatientPortal = Boolean(pathname?.startsWith("/dashboard/portal") || pathname?.startsWith("/portal"));
   const { patient, setPatient } = usePatientPortalStore();
+  const { data: session } = useSession();
   const [activeUser, setActiveUser] = useState(users[0]);
 
-  if (!activeUser) {
+  const currentUser = session?.user
+    ? {
+        id: session.user.id || "current",
+        name: session.user.name || "Staff Member",
+        email: session.user.email || "",
+        avatar: session.user.image || "",
+        role: (session.user as { role?: string }).role || "Staff",
+      }
+    : activeUser;
+
+  if (!currentUser) {
     return null;
   }
 
@@ -105,42 +116,30 @@ export function AccountSwitcher({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Avatar className="size-8 rounded-lg cursor-pointer bg-primary/10 text-primary font-semibold text-xs border border-border/80">
-          <AvatarImage src={activeUser.avatar || undefined} alt={activeUser.name} />
-          <AvatarFallback className="bg-primary/10 text-primary">{getInitials(activeUser.name)}</AvatarFallback>
+          <AvatarImage src={currentUser.avatar || undefined} alt={currentUser.name} />
+          <AvatarFallback className="bg-primary/10 text-primary">{getInitials(currentUser.name)}</AvatarFallback>
         </Avatar>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="min-w-64 space-y-1 rounded-lg" side="bottom" align="end" sideOffset={4}>
-        <DropdownMenuLabel className="px-2 py-1.5 text-xs text-muted-foreground font-semibold">
-          Switch Staff Account (Dev)
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        {users.map((user) => (
-          <DropdownMenuItem
-            key={user.email}
-            className={cn("p-1.5 rounded-md cursor-pointer", user.id === activeUser.id && "bg-accent/50")}
-            aria-current={user.id === activeUser.id ? "true" : undefined}
-            onClick={() => setActiveUser(user)}
-          >
-            <div className="flex w-full items-center gap-2">
-              <Avatar className="size-8 rounded-lg bg-primary/10 text-primary text-xs font-semibold">
-                <AvatarImage src={user.avatar || undefined} alt={user.name} />
-                <AvatarFallback className="bg-primary/10 text-primary">{getInitials(user.name)}</AvatarFallback>
-              </Avatar>
-              <div className="grid min-w-0 flex-1 text-left text-xs leading-tight">
-                <span className="truncate font-semibold text-foreground">{user.name}</span>
-                <span className="truncate text-muted-foreground">{user.role}</span>
+        <DropdownMenuLabel className="p-1 font-normal">
+          <div className="flex items-center gap-2.5 px-1 py-1.5 text-left text-sm">
+            <Avatar className="h-8 w-8 rounded-lg bg-primary/10 text-primary font-semibold text-xs border border-border/80">
+              <AvatarImage src={currentUser.avatar || undefined} alt={currentUser.name} />
+              <AvatarFallback className="bg-primary/10 text-primary font-bold">{getInitials(currentUser.name)}</AvatarFallback>
+            </Avatar>
+            <div className="grid flex-1 text-left text-xs leading-tight">
+              <div className="flex items-center gap-1.5">
+                <span className="truncate font-bold text-foreground text-sm">{currentUser.name}</span>
+                <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-primary/10 text-primary border-primary/20">
+                  {currentUser.role}
+                </Badge>
               </div>
-              <span
-                className={cn(
-                  "text-primary mr-1 flex size-4 items-center justify-center opacity-0",
-                  user.id === activeUser.id && "opacity-100",
-                )}
-              >
-                <Check className="size-3.5" />
+              <span className="text-muted-foreground truncate text-[11px] font-mono mt-0.5">
+                {currentUser.email}
               </span>
             </div>
-          </DropdownMenuItem>
-        ))}
+          </div>
+        </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
           <DropdownMenuItem className="cursor-pointer" onClick={() => router.push("/dashboard/settings/users")}>

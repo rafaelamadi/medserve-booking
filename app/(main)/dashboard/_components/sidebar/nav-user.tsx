@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { signOut } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import { CircleUser, EllipsisVertical, LogOut, ShieldCheck } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -20,7 +20,7 @@ import { getInitials } from "@/lib/utils";
 export function NavUser({
   user,
 }: {
-  readonly user: {
+  readonly user?: {
     readonly name: string;
     readonly email: string;
     readonly avatar: string;
@@ -29,6 +29,21 @@ export function NavUser({
 }) {
   const router = useRouter();
   const { isMobile } = useSidebar();
+  const { data: session } = useSession();
+
+  const activeUser = session?.user
+    ? {
+        name: session.user.name || "Staff Member",
+        email: session.user.email || "",
+        avatar: session.user.image || "",
+        role: (session.user as { role?: string }).role || "STAFF",
+      }
+    : user || {
+        name: "Staff Member",
+        email: "",
+        avatar: "",
+        role: "STAFF",
+      };
 
   const handleSignOut = async () => {
     try {
@@ -50,12 +65,12 @@ export function NavUser({
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
               <Avatar className="h-8 w-8 rounded-lg bg-primary/10 text-primary font-semibold text-xs">
-                <AvatarImage src={user.avatar || undefined} alt={user.name} />
-                <AvatarFallback className="rounded-lg bg-primary/10 text-primary">{getInitials(user.name)}</AvatarFallback>
+                <AvatarImage src={activeUser.avatar || undefined} alt={activeUser.name} />
+                <AvatarFallback className="rounded-lg bg-primary/10 text-primary">{getInitials(activeUser.name)}</AvatarFallback>
               </Avatar>
               <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-medium">{user.name}</span>
-                <span className="text-muted-foreground truncate text-xs">{user.email}</span>
+                <span className="truncate font-medium">{activeUser.name}</span>
+                <span className="text-muted-foreground truncate text-xs">{activeUser.email}</span>
               </div>
               <EllipsisVertical className="ml-auto size-4" />
             </SidebarMenuButton>
@@ -69,12 +84,12 @@ export function NavUser({
             <DropdownMenuLabel className="p-0 font-normal">
               <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                 <Avatar className="h-8 w-8 rounded-lg bg-primary/10 text-primary">
-                  <AvatarImage src={user.avatar || undefined} alt={user.name} />
-                  <AvatarFallback className="rounded-lg bg-primary/10 text-primary font-semibold text-xs">{getInitials(user.name)}</AvatarFallback>
+                  <AvatarImage src={activeUser.avatar || undefined} alt={activeUser.name} />
+                  <AvatarFallback className="rounded-lg bg-primary/10 text-primary font-semibold text-xs">{getInitials(activeUser.name)}</AvatarFallback>
                 </Avatar>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-medium">{user.name}</span>
-                  <span className="text-muted-foreground truncate text-xs">{user.email}</span>
+                  <span className="truncate font-medium">{activeUser.name}</span>
+                  <span className="text-muted-foreground truncate text-xs">{activeUser.email}</span>
                 </div>
               </div>
             </DropdownMenuLabel>
@@ -82,7 +97,7 @@ export function NavUser({
             <DropdownMenuGroup>
               <DropdownMenuItem className="cursor-pointer" onClick={() => router.push("/dashboard/settings/users")}>
                 <ShieldCheck className="mr-2 size-4 text-primary" />
-                Staff Role: {user.role || "Super Admin"}
+                Staff Role: {activeUser.role || "Staff"}
               </DropdownMenuItem>
               <DropdownMenuItem className="cursor-pointer" onClick={() => router.push("/dashboard/settings")}>
                 <CircleUser className="mr-2 size-4" />
