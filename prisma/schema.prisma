@@ -1,0 +1,424 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ───────── Enums ─────────
+
+enum ServiceCategory {
+  DIAGNOSTIC
+  ONCOLOGY
+}
+
+enum ConfirmationMode {
+  AUTO
+  REVIEW
+}
+
+enum AppointmentStatus {
+  REQUESTED
+  CONFIRMED
+  RESCHEDULE_REQUESTED
+  RESCHEDULE_PROPOSED
+  CHECKED_IN
+  COMPLETED
+  NO_SHOW
+  CANCELLED
+}
+
+enum AppointmentSource {
+  WEB
+  STAFF
+  CHAT
+}
+
+enum StaffRole {
+  SUPER_ADMIN
+  CENTRE_MANAGER
+  CLINICIAN
+  STAFF
+  VIEWER
+}
+
+enum SeriesPattern {
+  DAILY_WORKING_DAYS
+  EVERY_N_DAYS
+  EVERY_N_WEEKS
+  CUSTOM_DATES
+}
+
+enum SeriesStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum ChangeInitiator {
+  STAFF
+  PATIENT
+}
+
+enum ChangeKind {
+  RESCHEDULE
+  CANCEL
+  ADD_SESSION
+  SHIFT_ALL
+}
+
+enum NotificationChannel {
+  SMS
+  WHATSAPP
+  EMAIL
+}
+
+enum NotificationStatus {
+  QUEUED
+  SENT
+  DELIVERED
+  FAILED
+}
+
+enum ReminderStatus {
+  SCHEDULED
+  SENT
+  CANCELLED
+}
+
+// ───────── Catalogue ─────────
+
+model Centre {
+  id                     String   @id @default(cuid())
+  code                   String   @unique // MLCC, MKDC, MUDC
+  name                   String
+  city                   String
+  state                  String
+  address                String?
+  phone                  String
+  timezone               String   @default("Africa/Lagos")
+  isActive               Boolean  @default(true)
+  cancelCutoffHours      Int      @default(24)
+  maxPatientReschedules  Int      @default(2)
+  minLeadMinutes         Int      @default(120)
+  bookingWindowDays      Int      @default(90)
+  resultNudgeDays        Int      @default(5)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  centreServices CentreService[]
+  resources      Resource[]
+  closures       Closure[]
+  holidays       Holiday[]
+  appointments   Appointment[]
+  staff          StaffCentre[]
+}
+
+model Service {
+  id                String          @id @default(cuid())
+  slug              String          @unique
+  name              String
+  category          ServiceCategory
+  description       String?
+  prepInstructions  String? // included in confirmations
+  defaultDurationMin Int            @default(30)
+  supportsSeries    Boolean         @default(false)
+  isActive          Boolean         @default(true)
+
+  centreServices CentreService[]
+}
+
+model Resource {
+  id       String  @id @default(cuid())
+  centreId String
+  name     String // e.g. "Halcyon", "MRI Room 1"
+  type     String // e.g. "LINAC", "MRI", "CT"
+  isActive Boolean @default(true)
+
+  centre         Centre          @relation(fields: [centreId], references: [id])
+  centreServices CentreService[]
+  closures       Closure[]
+  appointments   Appointment[]
+
+  @@index([centreId])
+}
+
+model CentreService {
+  id               String           @id @default(cuid())
+  centreId         String
+  serviceId        String
+  resourceId       String? // if set, capacity counts against the resource
+  confirmationMode ConfirmationMode @default(REVIEW)
+  slotMinutes      Int              @default(30)
+  capacityPerSlot  Int              @default(1)
+  resultInstruction String? // e.g. "Collect at the front desk with your reference number"
+  isActive         Boolean          @default(true)
+
+  centre       Centre             @relation(fields: [centreId], references: [id])
+  service      Service            @relation(fields: [serviceId], references: [id])
+  resource     Resource?          @relation(fields: [resourceId], references: [id])
+  rules        AvailabilityRule[]
+  appointments Appointment[]
+  careSeries   CareSeries[]
+
+  @@unique([centreId, serviceId])
+}
+
+model AvailabilityRule {
+  id              String @id @default(cuid())
+  centreServiceId String
+  dayOfWeek       Int // 0 = Sunday ... 6 = Saturday
+  startMinute     Int // minutes from midnight, centre local time
+  endMinute       Int
+
+  centreService CentreService @relation(fields: [centreServiceId], references: [id])
+
+  @@index([centreServiceId, dayOfWeek])
+}
+
+model Closure {
+  id         String   @id @default(cuid())
+  centreId   String
+  resourceId String? // null = whole centre
+  startsOn   DateTime @db.Date
+  endsOn     DateTime @db.Date
+  reason     String?
+
+  centre   Centre    @relation(fields: [centreId], references: [id])
+  resource Resource? @relation(fields: [resourceId], references: [id])
+
+  @@index([centreId, startsOn, endsOn])
+}
+
+model Holiday {
+  id       String   @id @default(cuid())
+  centreId String? // null = applies to all centres
+  date     DateTime @db.Date
+  name     String
+
+  centre Centre? @relation(fields: [centreId], references: [id])
+
+  @@unique([centreId, date])
+  @@index([date])
+}
+
+// ───────── People ─────────
+
+model Patient {
+  id        String    @id @default(cuid())
+  phone     String?   @unique // E.164 normalised
+  fullName  String
+  email     String?   @unique
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  appointments Appointment[]
+  careSeries   CareSeries[]
+  reminders    FollowUpReminder[]
+}
+
+model EmailOtp {
+  id        String   @id @default(cuid())
+  email     String
+  codeHash  String
+  expiresAt DateTime
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([email])
+}
+
+model StaffUser {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String
+  passwordHash String?
+  role         StaffRole
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+
+  centres      StaffCentre[]
+  careSeries   CareSeries[]
+  auditEntries AuditLog[]
+  changes      ScheduleChange[]
+}
+
+model StaffCentre {
+  staffId  String
+  centreId String
+
+  staff  StaffUser @relation(fields: [staffId], references: [id])
+  centre Centre    @relation(fields: [centreId], references: [id])
+
+  @@id([staffId, centreId])
+}
+
+// ───────── Scheduling ─────────
+
+model CareSeries {
+  id              String        @id @default(cuid())
+  patientId       String
+  centreServiceId String
+  createdById     String
+  pattern         SeriesPattern
+  intervalN       Int? // for EVERY_N_DAYS / EVERY_N_WEEKS
+  totalSessions   Int
+  startDate       DateTime      @db.Date
+  sessionMinute   Int // time of day, minutes from midnight (centre local)
+  status          SeriesStatus  @default(ACTIVE)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  patient       Patient       @relation(fields: [patientId], references: [id])
+  centreService CentreService @relation(fields: [centreServiceId], references: [id])
+  createdBy     StaffUser     @relation(fields: [createdById], references: [id])
+  appointments  Appointment[]
+  changes       ScheduleChange[]
+
+  @@index([patientId])
+}
+
+model Appointment {
+  id                String            @id @default(cuid())
+  reference         String            @unique // MS-MLCC-XXXXXX
+  patientId         String
+  centreId          String
+  centreServiceId   String
+  resourceId        String? // denormalised for conflict checks
+  careSeriesId      String?
+  sequenceNo        Int? // position within a series
+  startsAt          DateTime
+  endsAt            DateTime
+  requestedStartsAt DateTime // what the patient originally asked for
+  status            AppointmentStatus @default(REQUESTED)
+  source            AppointmentSource @default(WEB)
+  patientNote       String?
+  internalNote      String?
+  patientReschedules Int              @default(0)
+  needsAttention    Boolean           @default(false) // e.g. holiday added after scheduling
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  deletedAt         DateTime?
+
+  patient       Patient       @relation(fields: [patientId], references: [id])
+  centre        Centre        @relation(fields: [centreId], references: [id])
+  centreService CentreService @relation(fields: [centreServiceId], references: [id])
+  resource      Resource?     @relation(fields: [resourceId], references: [id])
+  careSeries    CareSeries?   @relation(fields: [careSeriesId], references: [id])
+  changes       ScheduleChange[]
+  resultNotice  ResultNotice?
+  notifications Notification[]
+  reminders     FollowUpReminder[]
+
+  @@index([centreId, startsAt])
+  @@index([resourceId, startsAt])
+  @@index([patientId])
+  @@index([status])
+}
+
+model ScheduleChange {
+  id            String          @id @default(cuid())
+  appointmentId String?
+  careSeriesId  String?
+  kind          ChangeKind
+  initiatedBy   ChangeInitiator // v1: only STAFF for series; PATIENT for diagnostics
+  staffId       String?
+  oldStartsAt   DateTime?
+  newStartsAt   DateTime?
+  reason        String?
+  createdAt     DateTime        @default(now())
+
+  appointment Appointment? @relation(fields: [appointmentId], references: [id])
+  careSeries  CareSeries?  @relation(fields: [careSeriesId], references: [id])
+  staff       StaffUser?   @relation(fields: [staffId], references: [id])
+
+  @@index([appointmentId])
+  @@index([careSeriesId])
+}
+
+// ───────── Results and follow-ups ─────────
+
+model ResultNotice {
+  id            String    @id @default(cuid())
+  appointmentId String    @unique
+  sentById      String
+  sentAt        DateTime  @default(now())
+  nudgedAt      DateTime?
+  collectedAt   DateTime?
+
+  appointment Appointment @relation(fields: [appointmentId], references: [id])
+}
+
+model FollowUpReminder {
+  id            String         @id @default(cuid())
+  patientId     String
+  appointmentId String? // the visit that triggered it
+  centreId      String
+  serviceId     String
+  dueOn         DateTime       @db.Date
+  status        ReminderStatus @default(SCHEDULED)
+  sentAt        DateTime?
+  createdById   String
+
+  patient     Patient      @relation(fields: [patientId], references: [id])
+  appointment Appointment? @relation(fields: [appointmentId], references: [id])
+
+  @@index([dueOn, status])
+}
+
+// ───────── Messaging, auth, audit ─────────
+
+model Notification {
+  id            String              @id @default(cuid())
+  appointmentId String?
+  patientId     String?
+  templateKey   String
+  channel       NotificationChannel
+  status        NotificationStatus  @default(QUEUED)
+  providerRef   String?
+  attempts      Int                 @default(0)
+  lastError     String?
+  isChange      Boolean             @default(false) // eligible for channel fallback
+  nextAttemptAt DateTime? // backoff scheduling for retries (Phase 3)
+  createdAt     DateTime            @default(now())
+  sentAt        DateTime?
+
+  appointment Appointment? @relation(fields: [appointmentId], references: [id])
+
+  @@index([status])
+  @@index([status, nextAttemptAt])
+  @@index([appointmentId])
+}
+
+model OtpChallenge {
+  id           String   @id @default(cuid())
+  phone        String
+  codeHash     String
+  expiresAt    DateTime
+  attempts     Int      @default(0)
+  consumedAt   DateTime?
+  createdAt    DateTime @default(now())
+
+  @@index([phone, createdAt])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorType  String // STAFF | PATIENT | SYSTEM
+  staffId    String?
+  entityType String
+  entityId   String
+  action     String
+  before     Json?
+  after      Json?
+  createdAt  DateTime @default(now())
+
+  staff StaffUser? @relation(fields: [staffId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
