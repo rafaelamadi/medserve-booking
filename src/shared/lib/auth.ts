@@ -36,6 +36,7 @@ const googleClientId = process.env.AUTH_GOOGLE_ID || process.env.GOOGLE_CLIENT_I
 const googleClientSecret = process.env.AUTH_GOOGLE_SECRET || process.env.GOOGLE_CLIENT_SECRET;
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  secret: process.env.AUTH_SECRET,
   trustHost: true,
   session: { strategy: "jwt" },
   providers: [
