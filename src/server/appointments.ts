@@ -349,11 +349,15 @@ export async function createStaffAppointmentServer(
       });
     }
 
-    revalidatePath("/dashboard/default");
-    revalidatePath("/dashboard/appointments");
-    revalidatePath("/dashboard/calendar");
-    revalidatePath("/dashboard/portal");
-    revalidatePath("/dashboard/portal/appointments");
+    try {
+      revalidatePath("/dashboard/default");
+      revalidatePath("/dashboard/appointments");
+      revalidatePath("/dashboard/calendar");
+      revalidatePath("/dashboard/portal");
+      revalidatePath("/dashboard/portal/appointments");
+    } catch {
+      // Ignore revalidation errors if invoked outside Next.js request context
+    }
 
     return {
       ok: true,

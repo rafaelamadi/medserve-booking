@@ -183,9 +183,20 @@ export function PatientBookingDialog({
 
       if (result.ok && result.reference) {
         reference = result.reference;
+      } else {
+        toast.error("Booking Error", {
+          description: result.error || "Unable to confirm appointment with the clinical centre.",
+        });
+        setIsSubmitting(false);
+        return;
       }
     } catch (err) {
       console.error("Failed to persist appointment to Supabase:", err);
+      toast.error("Booking Failed", {
+        description: "An unexpected error occurred while communicating with the server.",
+      });
+      setIsSubmitting(false);
+      return;
     }
 
     const newRecord: PublicBookingRecord = {
