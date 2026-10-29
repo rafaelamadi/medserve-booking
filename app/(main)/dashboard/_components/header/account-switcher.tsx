@@ -150,7 +150,7 @@ export function AccountSwitcher({
         <DropdownMenuSeparator />
         <DropdownMenuItem className="cursor-pointer text-destructive focus:text-destructive" onClick={handleSignOut}>
           <LogOut className="mr-2 size-4" />
-          Sign out of Hub
+          Sign Out
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
