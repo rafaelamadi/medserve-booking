@@ -179,6 +179,8 @@ export type CreateStaffAppointmentInput = {
   patientPhone: string;
   patientEmail?: string;
   patientMrn?: string;
+  /** Real Supabase CUID of the patient — bypasses fuzzy matching when provided */
+  patientId?: string;
   centreCode: "MLCC" | "MKDC" | "MUDC";
   serviceName: string;
   date: string; // YYYY-MM-DD
@@ -257,10 +259,18 @@ export async function createStaffAppointmentServer(
     const cleanPhone = input.patientPhone?.trim() || null;
     const cleanName = input.patientName.trim();
     const cleanMrn = input.patientMrn?.trim() || null;
+    const cleanPatientId = input.patientId?.trim() || null;
 
-    // Find existing patient by email, phone, or MRN
+    // If the caller passes a real Supabase CUID, use it directly (no fuzzy matching)
     let patient = null;
-    if (cleanEmail) {
+    if (cleanPatientId) {
+      patient = await prisma.patient.findUnique({
+        where: { id: cleanPatientId },
+      });
+    }
+
+    // Fallback: find existing patient by email, phone, or MRN
+    if (!patient && cleanEmail) {
       patient = await prisma.patient.findFirst({
         where: { email: cleanEmail },
       });

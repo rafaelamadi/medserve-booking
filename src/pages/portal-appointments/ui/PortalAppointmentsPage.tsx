@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Activity,
   AlertCircle,
@@ -37,13 +38,16 @@ import { usePatientPortalStore, type RegisteredPatient } from "@/entities/patien
 import { TreatmentCalendar } from "@/widgets/treatment-calendar";
 import { PatientBookingDialog } from "@/features/book-appointment";
 import type { PublicBookingRecord } from "@/entities/appointment";
+import { refreshLivePatientData } from "@/server/patients";
 
 function ManageAppointmentsContent({ initialPatient }: { initialPatient?: RegisteredPatient }) {
+  const router = useRouter();
   const { patient, customVisits, setPatient } = usePatientPortalStore();
   const [viewMode, setViewMode] = React.useState<"LEDGER" | "CALENDAR">("LEDGER");
   const [filter, setFilter] = React.useState<"ALL" | "UPCOMING" | "COMPLETED">("ALL");
   const [slipOpen, setSlipOpen] = React.useState(false);
   const [selectedVisitForSlip, setSelectedVisitForSlip] = React.useState<PatientVisit | null>(null);
+  const [livePatientData, setLivePatientData] = React.useState<RegisteredPatient | null>(null);
 
   React.useEffect(() => {
     if (initialPatient && (!patient || patient.id !== initialPatient.id || patient.fullName === "Chidinma Nwosu")) {
@@ -51,7 +55,31 @@ function ManageAppointmentsContent({ initialPatient }: { initialPatient?: Regist
     }
   }, [initialPatient, patient, setPatient]);
 
-  const activePatient = initialPatient || patient;
+  const activePatient = livePatientData || (initialPatient ? (patient?.id === initialPatient.id ? patient : initialPatient) : patient);
+
+  // Sync in real time when appointments are updated or booked
+  React.useEffect(() => {
+    const handleSync = async () => {
+      if (activePatient?.id) {
+        try {
+          const fresh = await refreshLivePatientData(activePatient.id);
+          if (fresh) {
+            setLivePatientData(fresh);
+            setPatient(fresh);
+          }
+        } catch {
+          // ignore
+        }
+      }
+    };
+
+    window.addEventListener("medserve:appointment-sync", handleSync);
+    window.addEventListener("storage", handleSync);
+    return () => {
+      window.removeEventListener("medserve:appointment-sync", handleSync);
+      window.removeEventListener("storage", handleSync);
+    };
+  }, [activePatient?.id, setPatient]);
 
   // Booking dialog state
   const [bookingOpen, setBookingOpen] = React.useState(false);
@@ -235,7 +263,7 @@ function ManageAppointmentsContent({ initialPatient }: { initialPatient?: Regist
             Manage Appointments
           </h1>
           <p className="text-sm text-muted-foreground">
-            Combined schedule of your active treatment series, upcoming chemotherapy sessions, and past encounter history for {patient.fullName}.
+            Combined schedule of your active treatment series, upcoming chemotherapy sessions, and past encounter history for {activePatient.fullName}.
           </p>
         </div>
 
@@ -561,7 +589,7 @@ function ManageAppointmentsContent({ initialPatient }: { initialPatient?: Regist
                     MedServe Oncology Network
                   </h3>
                   <p className="text-[11px] text-muted-foreground font-medium">
-                    {patient.centreName}
+                    {activePatient.centreName}
                   </p>
                 </div>
               </div>
@@ -576,14 +604,14 @@ function ManageAppointmentsContent({ initialPatient }: { initialPatient?: Regist
                   Patient Name
                 </span>
                 <h4 className="text-sm font-bold text-foreground">
-                  {patient.fullName}
+                  {activePatient.fullName}
                 </h4>
               </div>
               <div className="text-right">
                 <span className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider block">
                   Medical Record Number
                 </span>
-                <span className="font-mono font-bold text-foreground">{patient.mrn}</span>
+                <span className="font-mono font-bold text-foreground">{activePatient.mrn}</span>
               </div>
             </div>
 
@@ -631,7 +659,7 @@ function ManageAppointmentsContent({ initialPatient }: { initialPatient?: Regist
         defaultCentreCode={(activePatient.centreCode as "MLCC" | "MKDC" | "MUDC") || "MLCC"}
         onBookingSuccess={(bkg: PublicBookingRecord) => {
           const newVisit: PatientVisit = {
-            id: `vis-bkg-${Date.now()}`,
+            id: `vis-bkg-${bkg.reference || Date.now()}`,
             visitNumber: (mergedSchedule.visits?.length || 0) + extraVisits.length + 1,
             date: bkg.date,
             timeSlot: bkg.timeSlot,
@@ -641,6 +669,19 @@ function ManageAppointmentsContent({ initialPatient }: { initialPatient?: Regist
             notes: bkg.notes || `Self-booked appointment (${bkg.reference})`,
           };
           setExtraVisits((prev) => [newVisit, ...prev]);
+        }}
+        onBookingComplete={async (patientId: string) => {
+          try {
+            const fresh = await refreshLivePatientData(patientId);
+            if (fresh) {
+              setLivePatientData(fresh);
+              setPatient(fresh);
+              setExtraVisits([]);
+            }
+          } catch (err) {
+            console.error("Failed to re-fetch live patient data in appointments page:", err);
+          }
+          router.refresh();
         }}
       />
     </div>

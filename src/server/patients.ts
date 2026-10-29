@@ -523,6 +523,22 @@ export async function getLivePatientById(idOrMrn: string): Promise<RegisteredPat
 }
 
 /**
+ * Lightweight server action for client components to re-fetch a patient's
+ * full data (including fresh appointments) after a booking, without a full
+ * page refresh. Returns the updated RegisteredPatient record.
+ */
+export async function refreshLivePatientData(
+  patientId: string
+): Promise<RegisteredPatient | null> {
+  try {
+    return await getLivePatientById(patientId);
+  } catch (err) {
+    console.error("Error refreshing live patient data:", err);
+    return null;
+  }
+}
+
+/**
  * Dispatch an email clinical notification and persist to Supabase notifications table.
  */
 export async function sendPatientEmailNoticeServer(

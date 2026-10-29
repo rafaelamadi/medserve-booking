@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Activity,
   CalendarPlus,
@@ -28,12 +29,17 @@ import {
 import { usePatientPortalStore, type RegisteredPatient } from "@/entities/patient";
 import { TreatmentCalendar } from "@/widgets/treatment-calendar";
 import { PatientBookingDialog } from "@/features/book-appointment";
+import { refreshLivePatientData } from "@/server/patients";
+import type { PublicBookingRecord } from "@/entities/appointment";
 
 export function PatientHomeContent({ initialPatient }: { initialPatient?: RegisteredPatient }) {
+  const router = useRouter();
   const { patient, customVisits, setPatient } = usePatientPortalStore();
   const [bookingOpen, setBookingOpen] = React.useState(false);
   const [slipOpen, setSlipOpen] = React.useState(false);
   const [selectedVisitForSlip, setSelectedVisitForSlip] = React.useState<PatientVisit | null>(null);
+  const [extraVisits, setExtraVisits] = React.useState<PatientVisit[]>([]);
+  const [livePatientData, setLivePatientData] = React.useState<RegisteredPatient | null>(null);
 
   React.useEffect(() => {
     if (initialPatient && (!patient || patient.id !== initialPatient.id || patient.fullName === "Chidinma Nwosu")) {
@@ -41,7 +47,31 @@ export function PatientHomeContent({ initialPatient }: { initialPatient?: Regist
     }
   }, [initialPatient, patient, setPatient]);
 
-  const activePatient = initialPatient || patient;
+  const activePatient = livePatientData || (initialPatient ? (patient?.id === initialPatient.id ? patient : initialPatient) : patient);
+
+  // Sync in real time when appointments are booked, rescheduled, or status-updated
+  React.useEffect(() => {
+    const handleSync = async () => {
+      if (activePatient?.id) {
+        try {
+          const fresh = await refreshLivePatientData(activePatient.id);
+          if (fresh) {
+            setLivePatientData(fresh);
+            setPatient(fresh);
+          }
+        } catch {
+          // ignore
+        }
+      }
+    };
+
+    window.addEventListener("medserve:appointment-sync", handleSync);
+    window.addEventListener("storage", handleSync);
+    return () => {
+      window.removeEventListener("medserve:appointment-sync", handleSync);
+      window.removeEventListener("storage", handleSync);
+    };
+  }, [activePatient?.id, setPatient]);
 
   // Only find matching pre-existing schedule if patient is a demo patient (e.g. pat-01), otherwise null
   const baseSchedule: PatientCareSchedule | null = React.useMemo(() => {
@@ -97,13 +127,12 @@ export function PatientHomeContent({ initialPatient }: { initialPatient?: Regist
       }
     }
 
-    // 3. Add any optimistic custom visits from the active session
-    if (customVisits) {
-      for (const v of customVisits) {
-        if (!existingIds.has(v.id)) {
-          existingIds.add(v.id);
-          allCombined.push(v);
-        }
+    // 3. Add any optimistic custom visits or extra visits from active session
+    const extra = [...(customVisits || []), ...extraVisits];
+    for (const v of extra) {
+      if (!existingIds.has(v.id)) {
+        existingIds.add(v.id);
+        allCombined.push(v);
       }
     }
 
@@ -140,7 +169,7 @@ export function PatientHomeContent({ initialPatient }: { initialPatient?: Regist
       hasRescheduleRequest: false,
       visits,
     };
-  }, [baseSchedule, customVisits, activePatient]);
+  }, [baseSchedule, customVisits, extraVisits, activePatient]);
 
   const hasAppointments = schedule.visits.length > 0;
 
@@ -375,6 +404,32 @@ export function PatientHomeContent({ initialPatient }: { initialPatient?: Regist
         onOpenChange={setBookingOpen}
         patient={activePatient}
         defaultCentreCode={(activePatient.centreCode as "MLCC" | "MKDC" | "MUDC") || "MLCC"}
+        onBookingSuccess={(bkg: PublicBookingRecord) => {
+          const newVisit: PatientVisit = {
+            id: `vis-bkg-${bkg.reference || Date.now()}`,
+            visitNumber: (schedule.visits?.length || 0) + extraVisits.length + 1,
+            date: bkg.date,
+            timeSlot: bkg.timeSlot,
+            serviceName: bkg.serviceName,
+            room: "Consulting Room",
+            status: "SCHEDULED",
+            notes: bkg.notes || `Self-booked appointment (${bkg.reference})`,
+          };
+          setExtraVisits((prev) => [newVisit, ...prev]);
+        }}
+        onBookingComplete={async (patientId: string) => {
+          try {
+            const fresh = await refreshLivePatientData(patientId);
+            if (fresh) {
+              setLivePatientData(fresh);
+              setPatient(fresh);
+              setExtraVisits([]);
+            }
+          } catch (err) {
+            console.error("Failed to re-fetch live patient data:", err);
+          }
+          router.refresh();
+        }}
       />
     </div>
   );

@@ -111,6 +111,17 @@ export function TreatmentCalendar({ schedule, onOpenPass }: TreatmentCalendarPro
   const [currentDate, setCurrentDate] = React.useState<Date>(defaultDate);
   const [selectedVisit, setSelectedVisit] = React.useState<PatientVisit | null>(nextVisit);
 
+  // If nextVisit changes (e.g. fresh bookings arrived or schedule updated), keep view synced
+  React.useEffect(() => {
+    if (nextVisit && !selectedVisit) {
+      setSelectedVisit(nextVisit);
+      const [year, month, day] = nextVisit.date.split("-").map(Number);
+      if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+        setCurrentDate(new Date(year, month - 1, day));
+      }
+    }
+  }, [nextVisit, selectedVisit]);
+
   // Sync selected date and navigate when a booking is confirmed
   React.useEffect(() => {
     if (calendarFocusDate) {
@@ -714,14 +725,16 @@ export function TreatmentCalendar({ schedule, onOpenPass }: TreatmentCalendarPro
                   This day is scheduled as a rest or recovery day. No clinic attendance is required.
                 </p>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-xs font-medium"
-                onClick={handleToday}
-              >
-                Jump to Next Scheduled Session (27 Oct)
-              </Button>
+              {nextVisit && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs font-medium"
+                  onClick={handleToday}
+                >
+                  Jump to Next Scheduled Session ({format(defaultDate, "d MMM")})
+                </Button>
+              )}
             </div>
           )}
         </div>

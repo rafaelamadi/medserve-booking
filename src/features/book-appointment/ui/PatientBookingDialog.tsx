@@ -48,6 +48,8 @@ interface PatientBookingDialogProps {
   patient: RegisteredPatient;
   defaultCentreCode?: "MLCC" | "MKDC" | "MUDC";
   onBookingSuccess?: (newBooking: PublicBookingRecord) => void;
+  /** Called after booking succeeds, with the patient's real Supabase ID, so the parent can re-fetch live data */
+  onBookingComplete?: (patientId: string) => void;
 }
 
 const TIME_SLOTS = {
@@ -61,6 +63,7 @@ export function PatientBookingDialog({
   patient,
   defaultCentreCode = "MLCC",
   onBookingSuccess,
+  onBookingComplete,
 }: PatientBookingDialogProps) {
   const { addCustomVisit, setCalendarFocusDate } = usePatientPortalStore();
 
@@ -165,6 +168,7 @@ export function PatientBookingDialog({
 
     try {
       const result = await createStaffAppointmentServer({
+        patientId: patient.id,   // Pass the real Supabase CUID — no fuzzy matching
         patientName: fullName,
         patientPhone: phone,
         patientEmail: email || undefined,
@@ -228,6 +232,11 @@ export function PatientBookingDialog({
 
     if (onBookingSuccess) {
       onBookingSuccess(newRecord);
+    }
+
+    // Trigger parent re-fetch so the calendar/ledger updates immediately
+    if (onBookingComplete) {
+      onBookingComplete(patient.id);
     }
 
     toast.success("Appointment Booked Successfully", {
