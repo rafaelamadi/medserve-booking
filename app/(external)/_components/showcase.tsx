@@ -20,7 +20,7 @@ export function Showcase() {
                   MedServe Oncology Network
                 </span>
                 <span className="text-[11px] text-muted-foreground">
-                  MLCC Lagos · MKDC Kano · MUDC Abuja
+                  MLCC Lagos · MKDC Kano · MUDC Umuahia
                 </span>
               </div>
             </div>
@@ -33,10 +33,10 @@ export function Showcase() {
             <div className="p-3.5 rounded-xl border bg-muted/30 space-y-1">
               <span className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider flex items-center gap-1.5">
                 <Stethoscope className="size-3.5 text-primary" />
-                Radiotherapy & VMAT
+                Oncology & Diagnostics
               </span>
-              <div className="text-base font-bold text-foreground">Active Linac Vaults</div>
-              <p className="text-[11px] text-muted-foreground">Precision dosimetric delivery across 3 regional cancer centres</p>
+              <div className="text-base font-bold text-foreground">Treatment & Imaging</div>
+              <p className="text-[11px] text-muted-foreground">Precision clinical delivery across Lagos, Kano, and Umuahia</p>
             </div>
 
             <div className="p-3.5 rounded-xl border bg-muted/30 space-y-1">

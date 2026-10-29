@@ -55,7 +55,7 @@ const centreFilterOptions = [
   { value: "all", label: "All Centres" },
   { value: "MLCC", label: "MLCC (Lagos)" },
   { value: "MKDC", label: "MKDC (Kano)" },
-  { value: "MUDC", label: "MUDC (Abuja)" },
+  { value: "MUDC", label: "MUDC (Umuahia)" },
 ] as const;
 
 const rescheduleFilterOptions = [

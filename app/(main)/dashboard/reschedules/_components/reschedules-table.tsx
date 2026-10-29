@@ -133,7 +133,7 @@ export function ReschedulesTable({ data, onDataChange }: ReschedulesTableProps) 
               <SelectItem value="all">All Centres</SelectItem>
               <SelectItem value="MLCC">MLCC (Lagos)</SelectItem>
               <SelectItem value="MKDC">MKDC (Kano)</SelectItem>
-              <SelectItem value="MUDC">MUDC (Abuja)</SelectItem>
+              <SelectItem value="MUDC">MUDC (Umuahia)</SelectItem>
             </SelectContent>
           </Select>
         </div>

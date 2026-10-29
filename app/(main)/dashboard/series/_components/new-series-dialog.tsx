@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { CANONICAL_STAFF } from "@/types/centre-scope";
 import type { PatientCareSchedule, PatientVisit, SchedulePattern } from "@/data/care-series-data";
 
 interface NewSeriesDialogProps {
@@ -34,7 +35,7 @@ export function NewSeriesDialog({ onCreated }: NewSeriesDialogProps) {
   const [primaryService, setPrimaryService] = React.useState("Radiotherapy Session");
   const [technique, setTechnique] = React.useState("VMAT Protocol");
   const [diagnosis, setDiagnosis] = React.useState("");
-  const [room, setRoom] = React.useState("Linac Vault 1");
+  const [room, setRoom] = React.useState("");
   const [doctorInCharge, setDoctorInCharge] = React.useState("Dr. Kachi");
   const [totalVisits, setTotalVisits] = React.useState(20);
   const [pattern, setPattern] = React.useState<SchedulePattern>("DAILY_WORKING_DAYS");
@@ -103,8 +104,8 @@ export function NewSeriesDialog({ onCreated }: NewSeriesDialogProps) {
 
     const centreMap = {
       MLCC: "MedServe LUTH Cancer Centre (Lagos)",
-      MKDC: "MedServe Kano Diagnostic & Oncology Centre",
-      MUDC: "MedServe Abuja Diagnostics & Oncology",
+      MKDC: "MedServe Kano Diagnostic Centre",
+      MUDC: "MedServe Umuahia Diagnostic Centre",
     };
 
     const newId = `cs-${Date.now().toString().slice(-4)}`;
@@ -214,7 +215,7 @@ export function NewSeriesDialog({ onCreated }: NewSeriesDialogProps) {
             <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               2. Centre & Service Encounter
             </span>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label className="text-xs">Centre *</Label>
                 <select
@@ -223,21 +224,15 @@ export function NewSeriesDialog({ onCreated }: NewSeriesDialogProps) {
                   onChange={(e) => {
                     const c = e.target.value as "MLCC" | "MKDC" | "MUDC";
                     setCentreCode(c);
-                    if (c === "MLCC") {
-                      setRoom("Linac Vault 1");
-                      setDoctorInCharge("Dr. Kachi");
-                    } else if (c === "MKDC") {
-                      setRoom("Linac Vault 1");
-                      setDoctorInCharge("Dr. Amina Bello");
-                    } else {
-                      setRoom("Varian Halcyon Vault");
-                      setDoctorInCharge("Dr. Chukwudi");
+                    const matchingStaff = CANONICAL_STAFF.filter((s) => s.centreCodes.includes(c));
+                    if (matchingStaff.length > 0) {
+                      setDoctorInCharge(matchingStaff[0].name);
                     }
                   }}
                 >
                   <option value="MLCC">MLCC — Lagos</option>
                   <option value="MKDC">MKDC — Kano</option>
-                  <option value="MUDC">MUDC — Abuja</option>
+                  <option value="MUDC">MUDC — Umuahia</option>
                 </select>
               </div>
 
@@ -249,18 +244,10 @@ export function NewSeriesDialog({ onCreated }: NewSeriesDialogProps) {
                   onChange={(e) => setPrimaryService(e.target.value)}
                 >
                   <option value="Radiotherapy Session">Radiotherapy Session</option>
-                  <option value="Chemotherapy Infusion">Chemotherapy Infusion</option>
+                  <option value="Chemotherapy">Chemotherapy</option>
                   <option value="CT Simulation Scan">CT Simulation Scan</option>
                   <option value="Oncologist Consultation">Oncologist Consultation</option>
                 </select>
-              </div>
-
-              <div className="space-y-1">
-                <Label className="text-xs">Treatment Room / Bay</Label>
-                <Input
-                  value={room}
-                  onChange={(e) => setRoom(e.target.value)}
-                />
               </div>
             </div>
 
@@ -268,17 +255,24 @@ export function NewSeriesDialog({ onCreated }: NewSeriesDialogProps) {
               <div className="space-y-1">
                 <Label className="text-xs">Clinical Condition / Diagnosis</Label>
                 <Input
-                  placeholder="e.g. Breast Cancer (Post-Surgery)"
+                  placeholder="e.g. Clinical Assessment & Follow-up"
                   value={diagnosis}
                   onChange={(e) => setDiagnosis(e.target.value)}
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Doctor in Charge</Label>
-                <Input
+                <Label className="text-xs">Doctor / Staff in Charge</Label>
+                <select
+                  className="h-9 w-full rounded-md border bg-background px-3 text-xs"
                   value={doctorInCharge}
                   onChange={(e) => setDoctorInCharge(e.target.value)}
-                />
+                >
+                  {CANONICAL_STAFF.filter((s) => s.centreCodes.includes(centreCode)).map((staff) => (
+                    <option key={staff.id} value={staff.name}>
+                      {staff.name}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
           </div>

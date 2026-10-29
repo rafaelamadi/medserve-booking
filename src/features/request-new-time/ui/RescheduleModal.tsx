@@ -81,15 +81,15 @@ export function RescheduleModal({
               {patient.nextVisit?.date || "2026-10-27"} at {patient.nextVisit?.timeSlot || "08:30 AM"}
             </div>
             <p className="text-[11px] text-muted-foreground">
-              {patient.nextVisit?.service || patient.primaryService} · {patient.nextVisit?.room || "Linac Vault 1"}
+              {patient.nextVisit?.service || patient.primaryService}{patient.nextVisit?.room ? ` · ${patient.nextVisit.room}` : ""}
             </p>
           </div>
 
-          {/* Clinical Dosimetric Warning */}
+          {/* Clinical Confirmation Note */}
           <div className="p-3 rounded-lg border border-amber-500/30 bg-amber-500/5 flex items-start gap-2.5 text-xs text-amber-800 dark:text-amber-300">
             <AlertCircle className="size-4 shrink-0 mt-0.5" />
             <span>
-              <strong>Clinical Note:</strong> Radiotherapy treatments require steady fractionation for optimal results. Your request will be reviewed by the clinical physics team to maintain safe intervals.
+              <strong>Clinical Note:</strong> Your request will be reviewed by the clinical team to verify slot availability and maintain continuity of care.
             </span>
           </div>
 

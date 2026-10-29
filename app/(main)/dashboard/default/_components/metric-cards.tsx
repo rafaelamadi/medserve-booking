@@ -1,25 +1,26 @@
 "use client";
 
-import { Activity, AlertTriangle, CalendarCheck, CheckCircle2, Clock, Repeat } from "lucide-react";
+import { CalendarCheck, CheckCircle2, Clock, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CLINICAL_METRICS } from "@/data/clinical-queue-data";
+import { useCentreScope } from "@/shared/context/centre-scope-context";
 
 export function MetricCards() {
-  const metrics = CLINICAL_METRICS.all;
+  const { selectedCentre } = useCentreScope();
+  const code = (selectedCentre?.code?.toLowerCase() || "all") as "mlcc" | "mkdc" | "mudc" | "all";
+  const metrics = CLINICAL_METRICS[code] || CLINICAL_METRICS.all;
 
   return (
-    <div className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card grid grid-cols-1 gap-4 *:data-[slot=card]:bg-linear-to-t *:data-[slot=card]:shadow-xs sm:grid-cols-2 xl:grid-cols-4">
-      {/* 1. Today's Appointments */}
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {/* 1. Today's Bookings */}
       <Card className="relative overflow-hidden">
         <CardHeader>
           <CardTitle>
-            <div className="bg-primary/10 text-primary flex size-8 items-center justify-center rounded-lg border border-primary/20">
-              <CalendarCheck className="size-4.5" />
-            </div>
+            <CalendarCheck className="size-5 text-primary" />
           </CardTitle>
           <CardDescription className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            Today&apos;s Appointments
+            Today&apos;s Bookings
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-1.5">
@@ -29,25 +30,23 @@ export function MetricCards() {
             </div>
             <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 font-medium">
               <CheckCircle2 className="size-3 mr-1" />
-              {metrics.checkedIn} Checked-in
+              {metrics.checkedIn} Arrived
             </Badge>
           </div>
           <p className="text-muted-foreground text-xs">
-            {metrics.inTreatment} in treatment · {metrics.pendingConfirm} pending confirmation
+            {metrics.inTreatment} currently in session
           </p>
         </CardContent>
       </Card>
 
-      {/* 2. Active Care Series */}
+      {/* 2. Confirmed Appointments */}
       <Card className="relative overflow-hidden">
         <CardHeader>
           <CardTitle>
-            <div className="bg-blue-500/10 text-blue-600 dark:text-blue-400 flex size-8 items-center justify-center rounded-lg border border-blue-500/20">
-              <Repeat className="size-4.5" />
-            </div>
+            <CheckCircle2 className="size-5 text-emerald-600 dark:text-emerald-400" />
           </CardTitle>
           <CardDescription className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            Active Care Series
+            Confirmed Visits
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-1.5">
@@ -56,68 +55,65 @@ export function MetricCards() {
               {metrics.activeSeries}
             </div>
             <Badge variant="outline" className="bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20 font-medium">
-              Radiotherapy & Chemo
+              Ready for Visit
             </Badge>
           </div>
           <p className="text-muted-foreground text-xs">
-            18 fractions scheduled today across MLCC, MKDC & MUDC
+            Confirmed visits across all 3 centres
           </p>
         </CardContent>
       </Card>
 
-      {/* 3. Machine Utilization */}
+      {/* 3. Checked-In Patients */}
       <Card className="relative overflow-hidden">
         <CardHeader>
           <CardTitle>
-            <div className="bg-amber-500/10 text-amber-600 dark:text-amber-400 flex size-8 items-center justify-center rounded-lg border border-amber-500/20">
-              <Activity className="size-4.5" />
-            </div>
+            <Users className="size-5 text-blue-600 dark:text-blue-400" />
           </CardTitle>
           <CardDescription className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            Linac Machine Utilization
+            Checked-In Patients
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-1.5">
           <div className="flex flex-wrap items-center gap-2">
             <div className="text-3xl leading-none font-semibold tracking-tight tabular-nums">
-              {metrics.linacUtilization}
+              {metrics.checkedIn}
+            </div>
+            <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 font-medium">
+              At Clinic
+            </Badge>
+          </div>
+          <p className="text-muted-foreground text-xs">
+            Patients currently waiting or receiving care
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* 4. Pending Confirmation */}
+      <Card className="relative overflow-hidden">
+        <CardHeader>
+          <CardTitle>
+            <Clock className="size-5 text-amber-600 dark:text-amber-400" />
+          </CardTitle>
+          <CardDescription className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            Pending Confirmation
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-1.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="text-3xl leading-none font-semibold tracking-tight tabular-nums">
+              {metrics.pendingConfirm}
             </div>
             <Badge variant="outline" className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 font-medium">
-              Optimal Throughput
+              Awaiting Action
             </Badge>
           </div>
           <p className="text-muted-foreground text-xs">
-            Linac-1: 91% · Linac-2: 83% · CT Sim: 79%
-          </p>
-        </CardContent>
-      </Card>
-
-      {/* 4. Triage & Actions */}
-      <Card className="relative overflow-hidden">
-        <CardHeader>
-          <CardTitle>
-            <div className="bg-destructive/10 text-destructive flex size-8 items-center justify-center rounded-lg border border-destructive/20">
-              <AlertTriangle className="size-4.5" />
-            </div>
-          </CardTitle>
-          <CardDescription className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            Triage & Pending Actions
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-1.5">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="text-3xl leading-none font-semibold tracking-tight tabular-nums">
-              {metrics.pendingTriage}
-            </div>
-            <Badge variant="destructive" className="font-medium">
-              Action Required
-            </Badge>
-          </div>
-          <p className="text-muted-foreground text-xs">
-            3 Reschedule requests · 2 Series gap warnings · 1 Notice
+            Bookings to be confirmed with patients
           </p>
         </CardContent>
       </Card>
     </div>
   );
 }
+

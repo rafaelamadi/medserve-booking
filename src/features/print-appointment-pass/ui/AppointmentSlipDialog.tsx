@@ -35,7 +35,7 @@ export function AppointmentSlipDialog({
     date: schedule?.nextVisitDate || "2026-10-27",
     timeSlot: schedule?.nextVisitTime || "08:30 AM",
     service: schedule?.primaryService || patient.primaryService || "Radiotherapy Session",
-    room: schedule?.room || "Linac Vault 1",
+    room: schedule?.room || "",
   };
 
   const handlePrint = () => {
@@ -125,13 +125,13 @@ export function AppointmentSlipDialog({
             <div className="p-3 rounded-lg border bg-card space-y-1">
               <div className="flex items-center gap-1.5 text-muted-foreground">
                 <Stethoscope className="size-3.5 text-primary" />
-                <span className="font-semibold text-[11px]">Procedure & Facility Room</span>
+                <span className="font-semibold text-[11px]">Procedure & Facility</span>
               </div>
               <div className="font-bold text-foreground">
-                {nextVisit.service} · {nextVisit.room}
+                {nextVisit.service}{nextVisit.room ? ` · ${nextVisit.room}` : ""}
               </div>
               <div className="text-muted-foreground text-[11px]">
-                Attending Oncologist: <strong className="text-foreground">{patient.doctorInCharge}</strong>
+                Attending Clinician: <strong className="text-foreground">{patient.doctorInCharge}</strong>
               </div>
             </div>
           </div>

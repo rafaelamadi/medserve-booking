@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
 
+import { DashboardHeader } from "./_components/dashboard-header";
 import { MetricCards } from "./_components/metric-cards";
-import { TriageAlertsPanel } from "./_components/triage-alerts-panel";
 import { PerformanceOverview } from "./_components/performance-overview";
 import { SubscriberOverview } from "./_components/subscriber-overview";
 
 export const metadata: Metadata = {
-  title: "Clinical Overview | MedServe Hub",
+  title: "Appointments Overview | MedServe Hub",
   description:
-    "Multi-centre oncology appointments, radiotherapy series queues, and clinical workflow management across MLCC Lagos, MKDC Kano, and MUDC Abuja.",
+    "Patient booking and appointment management across MedServe centres in Lagos (MLCC), Kano (MKDC), and Umuahia (MUDC).",
   alternates: {
     canonical: "/dashboard/default",
   },
@@ -17,10 +17,10 @@ export const metadata: Metadata = {
 export default function Page() {
   return (
     <div className="@container/main flex flex-col gap-4 md:gap-6">
+      <DashboardHeader />
       <MetricCards />
-      <TriageAlertsPanel />
-      <PerformanceOverview />
       <SubscriberOverview />
+      <PerformanceOverview />
     </div>
   );
 }

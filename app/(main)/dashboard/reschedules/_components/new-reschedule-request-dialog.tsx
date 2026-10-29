@@ -57,8 +57,8 @@ export function NewRescheduleRequestDialog({
 
     const centreMap = {
       MLCC: "MedServe LUTH Cancer Centre (Lagos)",
-      MKDC: "Kano Diagnostic & Oncology Centre",
-      MUDC: "Abuja Diagnostic & Radiotherapy Centre",
+      MKDC: "MedServe Kano Diagnostic Centre",
+      MUDC: "MedServe Umuahia Diagnostic Centre",
     };
 
     const newReq: RescheduleRequest = {
@@ -70,8 +70,8 @@ export function NewRescheduleRequestDialog({
       phone: phone || "+234 800 000 0000",
       centreCode,
       centreName: centreMap[centreCode],
-      serviceName: "Radiotherapy Session",
-      room: centreCode === "MLCC" ? "Linac Vault 1" : "Linac Vault 2",
+      serviceName: centreCode === "MLCC" ? "Radiotherapy Session" : "Diagnostic Session",
+      room: "",
       currentDate: currentDate || new Date().toISOString().slice(0, 10),
       currentTimeSlot,
       requestedDate,
@@ -162,7 +162,7 @@ export function NewRescheduleRequestDialog({
                 <SelectContent>
                   <SelectItem value="MLCC">MLCC (Lagos)</SelectItem>
                   <SelectItem value="MKDC">MKDC (Kano)</SelectItem>
-                  <SelectItem value="MUDC">MUDC (Abuja)</SelectItem>
+                  <SelectItem value="MUDC">MUDC (Umuahia)</SelectItem>
                 </SelectContent>
               </Select>
             </div>

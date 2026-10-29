@@ -43,4 +43,5 @@ next-env.d.ts
 
 # local notes & migration backups
 link.md
+reminder.md
 *_medserve_backup/

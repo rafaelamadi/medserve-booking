@@ -131,11 +131,11 @@ export function AppointmentInspectorDialog({
 
             <div>
               <span className="text-[11px] block text-muted-foreground font-semibold uppercase tracking-wider">
-                Slot Time
+                Scheduled Arrival
               </span>
               <span className="font-mono font-medium text-foreground text-xs mt-0.5 block">
-                {typeof event.start === "object"
-                  ? event.start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                {event.start instanceof Date
+                  ? event.start.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true })
                   : String(event.start)}
               </span>
             </div>

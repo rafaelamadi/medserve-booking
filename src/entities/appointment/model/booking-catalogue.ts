@@ -8,7 +8,7 @@ export interface BookingCentre {
   address: string;
   phone: string;
   email: string;
-  focus: "Oncology & Radiotherapy" | "Diagnostic Imaging & Oncology" | "Advanced Diagnostics";
+  focus: "Comprehensive Oncology" | "Oncology & Radiotherapy" | "Diagnostic Imaging & Oncology" | "Advanced Diagnostics" | "Comprehensive Diagnostics";
   badge: string;
   availableServices: string[];
 }
@@ -36,32 +36,29 @@ export const BOOKING_CENTRES: BookingCentre[] = [
     address: "LUTH Complex, Idi-Araba, Surulere, Lagos",
     phone: "+234 1 888 0300",
     email: "care.mlcc@medserve.ng",
-    focus: "Oncology & Radiotherapy",
-    badge: "Linac Vaults Active",
+    focus: "Comprehensive Oncology",
+    badge: "Comprehensive Oncology Active",
     availableServices: [
       "srv-rad",
       "srv-chemo",
       "srv-brachy",
       "srv-onco-consult",
       "srv-ct-sim",
-      "srv-mammo",
     ],
   },
   {
     id: "centre-mkdc",
     code: "MKDC",
     name: "MedServe Kano Diagnostic Centre",
-    tagline: "Advanced Diagnostic & 3D-CRT Oncology Facility",
+    tagline: "Comprehensive Medical Imaging & Diagnostic Centre",
     city: "Kano",
     state: "Kano State",
     address: "Audu Bako Way, Nassarawa GRA, Kano",
     phone: "+234 64 920 114",
     email: "kano.desk@medserve.ng",
-    focus: "Diagnostic Imaging & Oncology",
-    badge: "Full Diagnostic Wing",
+    focus: "Comprehensive Diagnostics",
+    badge: "Diagnostic Imaging Active",
     availableServices: [
-      "srv-rad",
-      "srv-ct-sim",
       "srv-mri",
       "srv-mammo",
       "srv-ultrasound",
@@ -72,18 +69,17 @@ export const BOOKING_CENTRES: BookingCentre[] = [
   {
     id: "centre-mudc",
     code: "MUDC",
-    name: "MedServe Diagnostic Complex",
+    name: "MedServe Umuahia Diagnostic Centre",
     tagline: "Comprehensive Medical Imaging & Diagnostic Centre",
-    city: "Abuja",
-    state: "FCT Abuja",
-    address: "Central Business District, FCT Abuja",
-    phone: "+234 9 461 8800",
-    email: "abuja.desk@medserve.ng",
-    focus: "Advanced Diagnostics",
-    badge: "1.5T MRI Operational",
+    city: "Umuahia",
+    state: "Abia State",
+    address: "MedServe Diagnostic Complex, Umuahia, Abia State",
+    phone: "+234 800 000 0003",
+    email: "umuahia.desk@medserve.ng",
+    focus: "Comprehensive Diagnostics",
+    badge: "Diagnostic Imaging Active",
     availableServices: [
       "srv-mri",
-      "srv-ct-sim",
       "srv-ultrasound",
       "srv-xray",
       "srv-diag-consult",
@@ -94,36 +90,47 @@ export const BOOKING_CENTRES: BookingCentre[] = [
 export const BOOKING_SERVICES: BookingService[] = [
   {
     id: "srv-rad",
-    name: "Radiotherapy Session",
+    name: "Radiotherapy",
     category: "ONCOLOGY",
     categoryLabel: "Oncology Treatment",
     durationMinutes: 20,
     confirmationMode: "REVIEW",
-    description: "High-precision external beam radiation therapy delivered via Elekta or Varian linear accelerator.",
+    description: "High-precision external beam radiation therapy delivered via linear accelerator.",
     prepInstructions: "Drink 500ml water 30 minutes before appointment. Maintain comfortably full bladder. Wear loose clothing without metallic zips or underwires.",
-    centres: ["MLCC", "MKDC"],
+    centres: ["MLCC"],
   },
   {
     id: "srv-chemo",
-    name: "Chemotherapy Infusion Session",
+    name: "Chemotherapy",
     category: "ONCOLOGY",
     categoryLabel: "Oncology Treatment",
     durationMinutes: 90,
     confirmationMode: "REVIEW",
-    description: "Systemic systemic antineoplastic infusion therapy administered in supervised day-care infusion bays.",
+    description: "Systemic antineoplastic infusion therapy administered in supervised day-care infusion bays.",
     prepInstructions: "Hydrate well the day before. Have a light meal 1 hour prior to arrival. Bring your recent full blood count (FBC) laboratory results.",
     centres: ["MLCC"],
   },
   {
+    id: "srv-brachy",
+    name: "Brachytherapy",
+    category: "ONCOLOGY",
+    categoryLabel: "Oncology Treatment",
+    durationMinutes: 45,
+    confirmationMode: "REVIEW",
+    description: "High-dose-rate internal radiotherapy application under specialist clinical supervision.",
+    prepInstructions: "Fast for 6 hours prior to procedure. Routine pre-procedure blood and coagulation tests required.",
+    centres: ["MLCC"],
+  },
+  {
     id: "srv-ct-sim",
-    name: "CT Simulation & Contrast Scan",
-    category: "DIAGNOSTIC",
-    categoryLabel: "Diagnostic Imaging",
+    name: "CT Simulation",
+    category: "ONCOLOGY",
+    categoryLabel: "Oncology Planning",
     durationMinutes: 30,
-    confirmationMode: "AUTO",
-    description: "Wide-bore oncology CT imaging for radiation treatment planning or diagnostic evaluation.",
+    confirmationMode: "REVIEW",
+    description: "Wide-bore oncology CT imaging for radiation treatment planning and target volume delineation.",
     prepInstructions: "Fast for 4 hours prior if intravenous contrast is ordered. Bring recent kidney function (Serum Creatinine/eGFR) lab test result.",
-    centres: ["MLCC", "MKDC", "MUDC"],
+    centres: ["MLCC"],
   },
   {
     id: "srv-mri",
@@ -145,7 +152,7 @@ export const BOOKING_SERVICES: BookingService[] = [
     confirmationMode: "AUTO",
     description: "Low-dose digital mammogram with tomosynthesis for breast cancer detection and evaluation.",
     prepInstructions: "Do not apply deodorant, antiperspirant, powder, or lotions under arms or on breasts on the day of exam.",
-    centres: ["MLCC", "MKDC"],
+    centres: ["MKDC"],
   },
   {
     id: "srv-ultrasound",
@@ -156,6 +163,17 @@ export const BOOKING_SERVICES: BookingService[] = [
     confirmationMode: "AUTO",
     description: "Diagnostic abdominal, pelvic, breast, or Doppler vascular ultrasound scan.",
     prepInstructions: "For pelvic scan: drink 750ml water 1 hour prior. For abdominal scan: fast for 6 hours prior.",
+    centres: ["MKDC", "MUDC"],
+  },
+  {
+    id: "srv-xray",
+    name: "Digital X-Ray",
+    category: "DIAGNOSTIC",
+    categoryLabel: "Diagnostic Imaging",
+    durationMinutes: 15,
+    confirmationMode: "AUTO",
+    description: "Digital radiography for chest, skeletal, abdominal, or extremity investigations.",
+    prepInstructions: "Wear comfortable clothing without metal fasteners or jewelry.",
     centres: ["MKDC", "MUDC"],
   },
   {
@@ -220,6 +238,7 @@ export function saveBooking(booking: PublicBookingRecord): void {
     const existing = getSavedBookings();
     const updated = [booking, ...existing.filter((b) => b.reference !== booking.reference)];
     localStorage.setItem("medserve_public_bookings", JSON.stringify(updated));
+    window.dispatchEvent(new CustomEvent("medserve:appointment-sync", { detail: booking }));
   } catch (err) {
     console.error("Failed to save booking to localStorage", err);
   }

@@ -178,9 +178,9 @@ export function PatientDetailSheet({
 
               {patient.scheduleRef && (
                 <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" asChild>
-                  <Link href="/dashboard/series">
+                  <Link href="/dashboard/calendar">
                     <Calendar className="size-3.5" />
-                    <span>View Visit Calendar</span>
+                    <span>View Centre Calendar</span>
                     <ExternalLink className="size-3 text-muted-foreground" />
                   </Link>
                 </Button>

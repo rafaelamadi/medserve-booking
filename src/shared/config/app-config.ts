@@ -10,6 +10,6 @@ export const APP_CONFIG = {
   meta: {
     title: "MedServe Clinician & Staff Hub",
     description:
-      "Multi-centre oncology appointments, radiotherapy series queues, and clinical workflow management across MLCC Lagos, MKDC Kano, and MUDC Abuja.",
+      "Multi-centre appointment booking and patient scheduling across Lagos (MLCC), Kano (MKDC), and Umuahia (MUDC).",
   },
 };

@@ -9,7 +9,7 @@ export function Footer() {
           <span>MedServe Oncology Network &copy; {new Date().getFullYear()}</span>
         </div>
         <p className="text-muted-foreground/80">
-          Lagos (MLCC) · Kano (MKDC) · Abuja (MUDC)
+          Lagos (MLCC) · Kano (MKDC) · Umuahia (MUDC)
         </p>
       </div>
     </footer>

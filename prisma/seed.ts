@@ -6,37 +6,25 @@ const prisma = new PrismaClient({
 });
 
 const ONCOLOGY_SERVICES = [
-  { slug: "brachytherapy", name: "Brachytherapy", supportsSeries: true },
-  { slug: "cancer-care", name: "Cancer Care", supportsSeries: false },
-  { slug: "consultation-oncology", name: "Consultation", supportsSeries: false },
-  { slug: "hormonal-therapy", name: "Hormonal Therapy", supportsSeries: true },
-  { slug: "immunotherapy", name: "Immunotherapy", supportsSeries: true },
-  { slug: "oncology", name: "Oncology", supportsSeries: false },
-  { slug: "chemotherapy", name: "Chemotherapy", supportsSeries: true },
   { slug: "radiotherapy", name: "Radiotherapy", supportsSeries: true },
+  { slug: "brachytherapy", name: "Brachytherapy", supportsSeries: true },
+  { slug: "chemotherapy", name: "Chemotherapy", supportsSeries: true },
+  { slug: "immunotherapy", name: "Immunotherapy", supportsSeries: true },
+  { slug: "ct-simulation", name: "CT Simulation", supportsSeries: false },
+  { slug: "cancer-care", name: "Cancer Care / Consultation", supportsSeries: false },
+  { slug: "clinical-trials", name: "Clinical Trials", supportsSeries: false },
 ];
 
 const DIAGNOSTIC_SERVICES = [
-  "Blood Tests",
-  "Cardiac Diagnostics",
-  "CT Scan",
-  "Diagnostics",
-  "Immunoassays",
-  "Microbiology & Parasitology",
-  "Microscopy & Morphology",
-  "Molecular / Genetic Testing",
-  "MRI",
-  "Paternity Test",
-  "Serology",
-  "Ultrasound",
-  "X-Ray",
-  "Consultation",
-  "Mammography",
-].map((name) => ({
-  slug: name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, ""),
-  name,
-  supportsSeries: false,
-}));
+  { slug: "mri-scan", name: "MRI Scan", supportsSeries: false },
+  { slug: "ct-scan", name: "CT Scan", supportsSeries: false },
+  { slug: "ultrasound", name: "Ultrasound", supportsSeries: false },
+  { slug: "digital-xray", name: "Digital X-Ray", supportsSeries: false },
+  { slug: "mammography", name: "Mammography", supportsSeries: false },
+  { slug: "laboratory-tests", name: "Laboratory Tests", supportsSeries: false },
+  { slug: "featured-tests", name: "Featured Tests", supportsSeries: false },
+  { slug: "diagnostic-consultation", name: "Diagnostic Consultation", supportsSeries: false },
+];
 
 // 2026 Nigerian public holidays — editable in hub (FR-C7). Dates approximate; confirm in Phase 7 (Q8).
 const HOLIDAYS_2026: Array<{ date: string; name: string }> = [
@@ -151,6 +139,30 @@ async function main() {
       update: {},
       create: { staffId: admin.id, centreId: centre.id },
     });
+  }
+
+  // Seed clinicians and centre staff
+  const clinicians = [
+    { email: "kachi@medserve.ng", name: "Dr. Kachi", role: "CLINICIAN" as const, centres: [mlcc, mkdc, mudc] },
+    { email: "alabi@medserve.ng", name: "Dr. Alabi", role: "CLINICIAN" as const, centres: [mlcc] },
+    { email: "bello@medserve.ng", name: "Dr. Bello", role: "CLINICIAN" as const, centres: [mkdc] },
+    { email: "chukwudi@medserve.ng", name: "Dr. Chukwudi", role: "CLINICIAN" as const, centres: [mudc] },
+    { email: "chioma@medserve.ng", name: "Nurse Chioma", role: "STAFF" as const, centres: [mudc] },
+  ];
+
+  for (const s of clinicians) {
+    const user = await prisma.staffUser.upsert({
+      where: { email: s.email },
+      update: { name: s.name, role: s.role, isActive: true },
+      create: { email: s.email, name: s.name, role: s.role, passwordHash: defaultPasswordHash },
+    });
+    for (const centre of s.centres) {
+      await prisma.staffCentre.upsert({
+        where: { staffId_centreId: { staffId: user.id, centreId: centre.id } },
+        update: {},
+        create: { staffId: user.id, centreId: centre.id },
+      });
+    }
   }
 
   // Seed sample patient for instant sign in testing

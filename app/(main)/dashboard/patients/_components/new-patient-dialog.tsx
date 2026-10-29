@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Plus, UserPlus } from "lucide-react";
+import { Loader2, Plus, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -17,13 +17,17 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { RegisteredPatient } from "@/data/patient-registry-data";
+import { registerPatientServer } from "@/server/patients";
+import { useCentreScope } from "@/shared/context/centre-scope-context";
 
 interface NewPatientDialogProps {
   onCreated: (newPatient: RegisteredPatient) => void;
 }
 
 export function NewPatientDialog({ onCreated }: NewPatientDialogProps) {
+  const { selectedCentre } = useCentreScope();
   const [open, setOpen] = React.useState(false);
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
 
   // Demographic & Contact Form state
   const [fullName, setFullName] = React.useState("");
@@ -33,8 +37,16 @@ export function NewPatientDialog({ onCreated }: NewPatientDialogProps) {
   const [age, setAge] = React.useState(45);
   const [address, setAddress] = React.useState("");
   const [state, setState] = React.useState("Lagos State");
+  const [centreCode, setCentreCode] = React.useState<"MLCC" | "MKDC" | "MUDC">("MLCC");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Sync default centre with active scoped centre if not 'ALL'
+  React.useEffect(() => {
+    if (selectedCentre && selectedCentre.code !== "ALL" && (selectedCentre.code === "MLCC" || selectedCentre.code === "MKDC" || selectedCentre.code === "MUDC")) {
+      setCentreCode(selectedCentre.code);
+    }
+  }, [selectedCentre, open]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!fullName.trim() || !phone.trim()) {
@@ -42,59 +54,62 @@ export function NewPatientDialog({ onCreated }: NewPatientDialogProps) {
       return;
     }
 
-    const newId = `pat-${Date.now().toString().slice(-4)}`;
-    const newMrn = `MRN-${Math.floor(1000 + Math.random() * 9000)}`;
+    try {
+      setIsSubmitting(true);
 
-    const newPatient: RegisteredPatient = {
-      id: newId,
-      mrn: newMrn,
-      fullName,
-      gender,
-      age,
-      phone,
-      email: email || `${fullName.toLowerCase().replace(/\s+/g, ".")}@example.com`,
-      address: address || "Residential Address",
-      state,
-      centreCode: "MLCC",
-      centreName: "MedServe LUTH Cancer Centre",
-      primaryDiagnosis: "General Clinical Record",
-      primaryService: "Outpatient Care",
-      doctorInCharge: "Attending Oncologist",
-      status: "ACTIVE",
-      registrationDate: new Date().toISOString().split("T")[0],
-      totalVisits: 0,
-      completedVisits: 0,
-      remainingVisits: 0,
-      visits: [],
-      commLogs: [
-        {
-          id: `cl-${Date.now()}`,
-          timestamp: new Date().toISOString().replace("T", " ").slice(0, 16),
-          // SMS logic commented out for Resend email transition
-          // channel: "SMS",
-          // recipient: phone,
-          channel: "EMAIL",
-          type: "CHECK_IN_CONFIRM",
-          recipient: email || `${fullName.toLowerCase().replace(/\s+/g, ".")}@example.com`,
-          status: "DELIVERED",
-          messageSnippet: `Welcome to MedServe, ${fullName}. Your Patient Record Number is ${newMrn}.`,
-        },
-      ],
-    };
+      const centreNameMap: Record<string, string> = {
+        MLCC: "MedServe LUTH Cancer Centre (Lagos)",
+        MKDC: "MedServe Kano Diagnostic Centre",
+        MUDC: "MedServe Umuahia Diagnostic Centre",
+      };
 
-    onCreated(newPatient);
+      const result = await registerPatientServer({
+        fullName,
+        phone,
+        email: email || undefined,
+        gender,
+        age,
+        address,
+        state,
+        centreCode,
+        centreName: centreNameMap[centreCode] || "MedServe Medical Centre",
+      });
 
-    toast.success("Patient Record Registered", {
-      description: `${fullName} has been enrolled with MRN: ${newMrn}.`,
-    });
+      if (!result.success || !result.patient) {
+        toast.error("Registration Failed", {
+          description: result.error || "Could not save patient to database.",
+        });
+        return;
+      }
 
-    // Reset
-    setFullName("");
-    setPhone("");
-    setEmail("");
-    setAddress("");
-    setAge(45);
-    setOpen(false);
+      onCreated(result.patient);
+
+      toast.success("Patient Record Registered", {
+        description: `${result.patient.fullName} enrolled with MRN: ${result.patient.mrn} (Saved to Supabase).`,
+      });
+
+      // Dispatch global sync events across the entire dashboard
+      window.dispatchEvent(new CustomEvent("medserve:patient-sync"));
+      window.dispatchEvent(new CustomEvent("medserve:appointment-sync"));
+      try {
+        window.localStorage.setItem("medserve:last-sync", Date.now().toString());
+      } catch {
+        // ignore storage errors
+      }
+
+      // Reset
+      setFullName("");
+      setPhone("");
+      setEmail("");
+      setAddress("");
+      setAge(45);
+      setOpen(false);
+    } catch (err) {
+      console.error("Error during registration:", err);
+      toast.error("Unexpected error occurred while registering patient.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -115,7 +130,7 @@ export function NewPatientDialog({ onCreated }: NewPatientDialogProps) {
             </DialogTitle>
           </div>
           <DialogDescription className="text-xs text-muted-foreground">
-            Create a master patient identity record with automatic MRN assignment and contact details.
+            Create a master patient identity record with automatic MRN assignment and real-time Supabase sync.
           </DialogDescription>
         </DialogHeader>
 
@@ -178,6 +193,40 @@ export function NewPatientDialog({ onCreated }: NewPatientDialogProps) {
             </div>
           </div>
 
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Primary Facility</Label>
+              <select
+                className="h-9 w-full rounded-md border bg-background px-3 text-xs"
+                value={centreCode}
+                onChange={(e) => setCentreCode(e.target.value as "MLCC" | "MKDC" | "MUDC")}
+              >
+                <option value="MLCC">MLCC (Lagos)</option>
+                <option value="MKDC">MKDC (Kano)</option>
+                <option value="MUDC">MUDC (Umuahia)</option>
+              </select>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs">State of Residence</Label>
+              <select
+                className="h-9 w-full rounded-md border bg-background px-3 text-xs"
+                value={state}
+                onChange={(e) => setState(e.target.value)}
+              >
+                <option value="Lagos State">Lagos State</option>
+                <option value="Kano State">Kano State</option>
+                <option value="Abia State">Abia State</option>
+                <option value="Federal Capital Territory">Federal Capital Territory (Abuja)</option>
+                <option value="Oyo State">Oyo State</option>
+                <option value="Kaduna State">Kaduna State</option>
+                <option value="Rivers State">Rivers State</option>
+                <option value="Enugu State">Enugu State</option>
+                <option value="Imo State">Imo State</option>
+              </select>
+            </div>
+          </div>
+
           <div className="space-y-1">
             <Label className="text-xs">Residential Address</Label>
             <Input
@@ -187,32 +236,25 @@ export function NewPatientDialog({ onCreated }: NewPatientDialogProps) {
             />
           </div>
 
-          <div className="space-y-1">
-            <Label className="text-xs">State of Residence</Label>
-            <select
-              className="h-9 w-full rounded-md border bg-background px-3 text-xs"
-              value={state}
-              onChange={(e) => setState(e.target.value)}
-            >
-              <option value="Lagos State">Lagos State</option>
-              <option value="Kano State">Kano State</option>
-              <option value="Federal Capital Territory">Federal Capital Territory (Abuja)</option>
-              <option value="Oyo State">Oyo State</option>
-              <option value="Kaduna State">Kaduna State</option>
-              <option value="Rivers State">Rivers State</option>
-              <option value="Enugu State">Enugu State</option>
-            </select>
-          </div>
-
           <DialogFooter className="pt-2">
             <Button
               type="button"
               variant="outline"
+              disabled={isSubmitting}
               onClick={() => setOpen(false)}
             >
               Cancel
             </Button>
-            <Button type="submit">Create Patient Record</Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+                  Saving to Supabase...
+                </>
+              ) : (
+                "Create Patient Record"
+              )}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

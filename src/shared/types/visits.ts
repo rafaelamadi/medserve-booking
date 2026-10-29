@@ -11,7 +11,7 @@ export interface PatientVisit {
   date: string; // YYYY-MM-DD
   timeSlot: string; // e.g. "08:30 AM"
   serviceName: string; // e.g. "Radiotherapy Session", "Chemotherapy Infusion", "Consultation"
-  room: string; // e.g. "Linac Vault 1", "Infusion Bay 2", "Consultation Room"
+  room?: string; // Optional clinical room / area
   status: VisitStatus;
   notes?: string;
   rescheduledFrom?: string;

@@ -2,482 +2,919 @@
 
 import * as React from "react";
 import {
+  type ColumnDef,
   type ColumnFiltersState,
   type ColumnVisibilityState,
   type PaginationState,
   type RowSelectionState,
   type SortingState,
+  Subscribe,
   useTable,
 } from "@tanstack/react-table";
 import {
-  ArrowUpDown,
-  Building2,
-  Calendar,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  Clock,
   Download,
-  Filter,
-  HeartPulse,
-  Repeat,
+  Mail,
+  MoreHorizontal,
   Search,
   Stethoscope,
   UserCheck,
-  UsersRound,
+  UserX,
+  XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import type { AppointmentStatus, ClinicalAppointment } from "@/data/clinical-queue-data";
-import { dataTableFeatures } from "@/lib/data-table-features";
-import { getInitials } from "@/lib/utils";
+import { Textarea } from "@/components/ui/textarea";
+import { dataTableFeatures, type DataTableFeatures } from "@/lib/data-table-features";
+import { cn } from "@/lib/utils";
+import {
+  type ClinicalAppointmentRow,
+  updateAppointmentStatusServer,
+} from "@/server/appointments";
+import { sendPatientEmailNoticeServer } from "@/server/patients";
+import {
+  EMAIL_TEMPLATE_LIST,
+  type EmailTemplateKey,
+  renderEmailTemplate,
+} from "@/shared/templates/email-templates";
 
 import { AppointmentDetailSheet } from "./appointment-detail-sheet";
 
-const statusOptions = [
-  { value: "all", label: "All Statuses" },
-  { value: "IN_TREATMENT", label: "In Treatment" },
-  { value: "CHECKED_IN", label: "Checked In" },
-  { value: "SCHEDULED", label: "Scheduled" },
-  { value: "CONFIRMED", label: "Confirmed" },
-  { value: "COMPLETED", label: "Completed" },
-  { value: "RESCHEDULE_REQUESTED", label: "Reschedule Req." },
-] as const;
-
-const centreOptions = [
-  { value: "all", label: "All Centres" },
-  { value: "MLCC", label: "MLCC (Lagos)" },
-  { value: "MKDC", label: "MKDC (Kano)" },
-  { value: "MUDC", label: "MUDC (Abuja)" },
-] as const;
-
-const modalityOptions = [
-  { value: "all", label: "All Modalities" },
-  { value: "Radiotherapy", label: "Radiotherapy" },
-  { value: "Chemotherapy", label: "Chemotherapy" },
-  { value: "Consultation", label: "Consultation" },
-  { value: "Imaging", label: "CT Simulation" },
-] as const;
-
-const dateFilterOptions = [
-  { value: "all", label: "All Dates" },
-  { value: "today", label: "Today" },
-  { value: "tomorrow", label: "Tomorrow" },
-  { value: "this_week", label: "This Week" },
-] as const;
-
-interface AppointmentsTableProps {
-  data: ClinicalAppointment[];
-  onDataChange?: (updater: (prev: ClinicalAppointment[]) => ClinicalAppointment[]) => void;
+function statusBadge(status: string) {
+  switch (status) {
+    case "CHECKED_IN":
+      return (
+        <Badge
+          variant="outline"
+          className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 gap-1 font-medium"
+        >
+          <UserCheck className="size-3" />
+          Checked In
+        </Badge>
+      );
+    case "CONFIRMED":
+      return (
+        <Badge
+          variant="outline"
+          className="bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/30 gap-1 font-medium"
+        >
+          <CheckCircle2 className="size-3" />
+          Confirmed
+        </Badge>
+      );
+    case "NO_SHOW":
+      return (
+        <Badge
+          variant="outline"
+          className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30 gap-1 font-medium"
+        >
+          <UserX className="size-3" />
+          No-Show
+        </Badge>
+      );
+    case "CANCELLED":
+      return (
+        <Badge
+          variant="outline"
+          className="text-destructive border-destructive/30 gap-1 bg-destructive/5 font-medium"
+        >
+          <XCircle className="size-3" />
+          Cancelled by Patient
+        </Badge>
+      );
+    case "SCHEDULED":
+    default:
+      return (
+        <Badge variant="outline" className="text-muted-foreground gap-1">
+          <Clock className="size-3" />
+          Scheduled
+        </Badge>
+      );
+  }
 }
 
-export function AppointmentsTable({ data, onDataChange }: AppointmentsTableProps) {
-  const [selectedAppointment, setSelectedAppointment] = React.useState<ClinicalAppointment | null>(null);
+function formatBookedDate(scheduledTime?: string) {
+  if (!scheduledTime) return "29 Oct 2026";
+  try {
+    const d = new Date(scheduledTime);
+    if (isNaN(d.getTime())) return "29 Oct 2026";
+    return d.toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  } catch {
+    return "29 Oct 2026";
+  }
+}
+
+function SendEmailDialog({
+  apt,
+  open,
+  onOpenChange,
+}: {
+  apt: ClinicalAppointmentRow;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const patientEmail =
+    apt.patientEmail ||
+    `${apt.patientName.toLowerCase().replace(/[^a-z0-9]/g, ".")}@example.com`;
+
+  const cleanServiceName = apt.serviceName.replace(/\s*\([^)]*\)/g, "").trim();
+
+  const [template, setTemplate] = React.useState<EmailTemplateKey>("APPOINTMENT_CONFIRMATION");
+  const [subject, setSubject] = React.useState("");
+  const [message, setMessage] = React.useState("");
+  const [isSending, setIsSending] = React.useState(false);
+
+  const templateCtx = React.useMemo(() => {
+    return {
+      patientName: apt.patientName,
+      patientEmail,
+      patientMrn: apt.patientMrn,
+      centreName: apt.centreName,
+      centreCode: apt.centreCode,
+      serviceName: cleanServiceName,
+      timeSlot: apt.timeSlot,
+      reference: apt.reference,
+    };
+  }, [apt, patientEmail, cleanServiceName]);
+
+  React.useEffect(() => {
+    const rendered = renderEmailTemplate(template, templateCtx);
+    setSubject(rendered.subject);
+    setMessage(rendered.body);
+  }, [template, templateCtx]);
+
+  const handleSend = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setIsSending(true);
+      const res = await sendPatientEmailNoticeServer(
+        apt.patientMrn || apt.patientName,
+        subject,
+        message,
+        template
+      );
+
+      if (res.success) {
+        onOpenChange(false);
+        toast.success("Email Dispatched & Logged", {
+          description: `Dispatched "${subject}" to ${patientEmail} and logged permanently in Supabase.`,
+        });
+      } else {
+        toast.error("Dispatch Failed", {
+          description: res.error || "Could not log notification in Supabase.",
+        });
+      }
+    } catch (err) {
+      console.error("Error dispatching email:", err);
+      toast.error("An unexpected error occurred while sending email.");
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-base font-semibold flex items-center gap-2">
+            <Mail className="size-4 text-primary" />
+            Send Email to Patient
+          </DialogTitle>
+          <DialogDescription className="text-xs">
+            Send dynamic appointment confirmation, completion notice, or custom message to {apt.patientName}.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSend} className="space-y-3.5 py-1">
+          <div className="rounded-md border bg-muted/40 p-2.5 text-xs space-y-1">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground font-medium">Recipient:</span>
+              <span className="font-semibold text-foreground">
+                {apt.patientName} &lt;{patientEmail}&gt;
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground font-medium">Service & Centre:</span>
+              <span className="text-foreground">
+                {cleanServiceName} • {apt.centreCode}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground font-medium">Time Slot:</span>
+              <span className="font-mono font-medium text-foreground">{apt.timeSlot}</span>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold">Choose Template / Message Type</Label>
+            <Select
+              value={template}
+              onValueChange={(val: any) => setTemplate(val as EmailTemplateKey)}
+            >
+              <SelectTrigger className="w-full h-8.5 text-xs font-medium cursor-pointer text-left">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {EMAIL_TEMPLATE_LIST.map((tpl) => (
+                  <SelectItem key={tpl.key} value={tpl.key} className="text-xs py-1.5 cursor-pointer font-medium">
+                    {tpl.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium">Subject Line</Label>
+            <Input
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              className="h-8.5 text-xs"
+              required
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium">Message Body</Label>
+            <Textarea
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              rows={6}
+              className="text-xs leading-relaxed resize-none"
+              required
+            />
+          </div>
+
+          <DialogFooter className="pt-2 gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => onOpenChange(false)}
+              className="h-8.5 text-xs cursor-pointer"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              size="sm"
+              disabled={isSending}
+              className="h-8.5 text-xs gap-1.5 cursor-pointer font-medium"
+            >
+              <Mail className="size-3.5" />
+              {isSending ? "Sending..." : "Send Email"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function AppointmentActionsCell({ apt }: { apt: ClinicalAppointmentRow }) {
+  const [currentStatus, setCurrentStatus] = React.useState(apt.status);
+  const [emailOpen, setEmailOpen] = React.useState(false);
   const [sheetOpen, setSheetOpen] = React.useState(false);
 
+  React.useEffect(() => {
+    setCurrentStatus(apt.status);
+  }, [apt.status]);
+
+  const handleStatusChange = async (newStatus: "SCHEDULED" | "CHECKED_IN" | "CONFIRMED" | "NO_SHOW") => {
+    setCurrentStatus(newStatus);
+    const labelMap: Record<string, string> = {
+      SCHEDULED: "Scheduled",
+      CHECKED_IN: "Checked In",
+      CONFIRMED: "Confirmed (Session Done)",
+      NO_SHOW: "No-Show",
+    };
+    toast.success("Appointment Status Updated", {
+      description: `${apt.patientName} marked as ${labelMap[newStatus] || newStatus}.`,
+    });
+
+    if (apt.id && !apt.id.startsWith("mock-") && !apt.id.startsWith("apt-")) {
+      await updateAppointmentStatusServer(apt.id, newStatus);
+    }
+
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("medserve:appointment-sync", {
+          detail: { reference: apt.reference, status: newStatus },
+        })
+      );
+    }
+  };
+
+  const isCancelled = currentStatus === "CANCELLED";
+  const isConfirmed = currentStatus === "CONFIRMED";
+
+  if (isConfirmed) {
+    return (
+      <div className="flex items-center justify-center">
+        <Button
+          disabled
+          aria-label={`Session completed for ${apt.patientName} - no actions permitted`}
+          className="text-muted-foreground/30 cursor-not-allowed size-8 rounded-md"
+          size="icon-sm"
+          variant="ghost"
+          title="Session completed — no actions permitted"
+        >
+          <MoreHorizontal className="size-4" />
+        </Button>
+      </div>
+    );
+  }
+
+  if (isCancelled) {
+    return (
+      <div className="flex items-center justify-center">
+        <Button
+          disabled
+          aria-label={`Cancelled by patient for ${apt.patientName}`}
+          className="text-muted-foreground/30 cursor-not-allowed size-8 rounded-md"
+          size="icon-sm"
+          variant="ghost"
+          title="Cancelled by patient"
+        >
+          <MoreHorizontal className="size-4" />
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center justify-center">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            aria-label={`Open actions for ${apt.patientName}`}
+            className="text-muted-foreground hover:bg-muted/50 size-8 rounded-md cursor-pointer"
+            size="icon-sm"
+            variant="ghost"
+          >
+            <MoreHorizontal className="size-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-52">
+          <DropdownMenuItem
+            className="cursor-pointer font-medium"
+            onClick={() => setSheetOpen(true)}
+          >
+            <Stethoscope className="size-4 mr-2 text-primary" />
+            View Clinical Details
+          </DropdownMenuItem>
+
+          <DropdownMenuItem
+            className="cursor-pointer font-medium"
+            onClick={() => setEmailOpen(true)}
+          >
+            <Mail className="size-4 mr-2 text-primary" />
+            Send Email
+          </DropdownMenuItem>
+
+          <DropdownMenuSeparator />
+          {currentStatus !== "CHECKED_IN" && (
+            <DropdownMenuItem
+              className="cursor-pointer"
+              onClick={() => handleStatusChange("CHECKED_IN")}
+            >
+              <UserCheck className="size-4 mr-2 text-emerald-600" />
+              Check In Patient
+            </DropdownMenuItem>
+          )}
+          {currentStatus !== "CONFIRMED" && (
+            <DropdownMenuItem
+              className="cursor-pointer"
+              onClick={() => handleStatusChange("CONFIRMED")}
+            >
+              <CheckCircle2 className="size-4 mr-2 text-blue-600" />
+              Mark Confirmed (Done)
+            </DropdownMenuItem>
+          )}
+          {currentStatus !== "NO_SHOW" && (
+            <DropdownMenuItem
+              className="cursor-pointer text-amber-700 dark:text-amber-400 focus:text-amber-700"
+              onClick={() => handleStatusChange("NO_SHOW")}
+            >
+              <UserX className="size-4 mr-2" />
+              Mark as No-Show
+            </DropdownMenuItem>
+          )}
+          {currentStatus !== "SCHEDULED" && (
+            <DropdownMenuItem
+              className="cursor-pointer"
+              onClick={() => handleStatusChange("SCHEDULED")}
+            >
+              <Clock className="size-4 mr-2 text-muted-foreground" />
+              Mark Scheduled
+            </DropdownMenuItem>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <SendEmailDialog
+        apt={{ ...apt, status: currentStatus }}
+        open={emailOpen}
+        onOpenChange={setEmailOpen}
+      />
+
+      <AppointmentDetailSheet
+        appointment={{ ...apt, status: currentStatus as any }}
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        onStatusChange={(id: string, status: any) => handleStatusChange(status)}
+      />
+    </div>
+  );
+}
+
+const appointmentsColumns: ColumnDef<DataTableFeatures, ClinicalAppointmentRow>[] = [
+  {
+    id: "select",
+    header: ({ table }) => (
+      <div className="flex items-center justify-center">
+        <Subscribe
+          source={table.atoms.rowSelection}
+          selector={() =>
+            table.getIsAllPageRowsSelected() ||
+            (table.getIsSomePageRowsSelected() && !table.getIsAllPageRowsSelected() && "indeterminate")
+          }
+        >
+          {(checked) => (
+            <Checkbox
+              checked={checked}
+              onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+              aria-label="Select all appointments"
+            />
+          )}
+        </Subscribe>
+      </div>
+    ),
+    cell: ({ row }) => {
+      const isLocked =
+        row.original.status === "CONFIRMED" ||
+        row.original.status === "CANCELLED" ||
+        row.original.status === "CHECKED_IN";
+
+      return (
+        <div className="flex items-center justify-center">
+          <Subscribe source={row.table.atoms.rowSelection} selector={(selection) => Boolean(selection?.[row.id])}>
+            {(checked) => (
+              <Checkbox
+                checked={checked}
+                disabled={isLocked}
+                onCheckedChange={(value) => row.toggleSelected(!!value)}
+                aria-label={`Select appointment for ${row.original.patientName}`}
+              />
+            )}
+          </Subscribe>
+        </div>
+      );
+    },
+    enableHiding: false,
+  },
+  {
+    accessorKey: "patientName",
+    header: "Patient Name",
+    cell: ({ row }) => (
+      <div className="flex flex-col gap-0.5 min-w-0">
+        <span className="truncate text-sm font-medium text-foreground">
+          {row.original.patientName}
+        </span>
+        <span className="font-mono text-xs text-muted-foreground">
+          {row.original.patientMrn}
+        </span>
+      </div>
+    ),
+    enableHiding: false,
+  },
+  {
+    id: "search",
+    accessorFn: (row) => `${row.reference} ${row.patientName} ${row.patientPhone} ${row.patientMrn} ${row.centreCode}`,
+    filterFn: "includesString",
+    enableHiding: true,
+  },
+  {
+    accessorKey: "serviceName",
+    header: "Service",
+    cell: ({ row }) => {
+      const cleanService = row.original.serviceName.replace(/\s*\([^)]*\)/g, "").trim();
+      return (
+        <span className="text-xs font-semibold text-foreground truncate">{cleanService}</span>
+      );
+    },
+  },
+  {
+    accessorKey: "centreCode",
+    header: "Centre",
+    filterFn: "equalsString",
+    cell: ({ row }) => {
+      const centreLabel =
+        row.original.centreCode === "MLCC"
+          ? "MLCC (Lagos)"
+          : row.original.centreCode === "MKDC"
+          ? "MKDC (Kano)"
+          : "MUDC (Umuahia)";
+      return (
+        <span className="text-xs font-medium text-foreground">
+          {centreLabel}
+        </span>
+      );
+    },
+  },
+  {
+    accessorKey: "timeSlot",
+    header: "Time",
+    cell: ({ row }) => {
+      const dateStr = formatBookedDate(row.original.scheduledTime);
+      return (
+        <div className="flex flex-col gap-0.5">
+          <span className="text-xs font-medium text-foreground">{dateStr}</span>
+          <span className="font-mono text-xs text-muted-foreground">{row.original.timeSlot}</span>
+        </div>
+      );
+    },
+  },
+  {
+    accessorKey: "status",
+    header: "Status",
+    filterFn: "equalsString",
+    cell: ({ row }) => statusBadge(row.original.status),
+  },
+  {
+    id: "actions",
+    header: () => <div className="text-center">Action</div>,
+    cell: ({ row }) => <AppointmentActionsCell apt={row.original} />,
+  },
+];
+
+const columnWidths: Record<string, string> = {
+  select: "w-12 text-center",
+  patientName: "w-[24%]",
+  serviceName: "w-[18%]",
+  centreCode: "w-[15%]",
+  timeSlot: "w-[17%]",
+  status: "w-[16%]",
+  actions: "w-20 text-center",
+};
+
+interface AppointmentsTableProps {
+  data: ClinicalAppointmentRow[];
+  showExport?: boolean;
+}
+
+export function AppointmentsTable({
+  data,
+  showExport = true,
+}: AppointmentsTableProps) {
+  const [activeTab, setActiveTab] = React.useState<"all" | "scheduled" | "confirmed" | "no_show" | "cancelled">("all");
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({});
-  const [searchQuery, setSearchQuery] = React.useState("");
-  const [statusFilter, setStatusFilter] = React.useState("all");
-  const [centreFilter, setCentreFilter] = React.useState("all");
-  const [modalityFilter, setModalityFilter] = React.useState("all");
-  const [dateFilter, setDateFilter] = React.useState("all");
-  const [sorting, setSorting] = React.useState<"earliest" | "latest" | "patient">("earliest");
+  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
+  const [sorting, setSorting] = React.useState<SortingState>([]);
+  const [columnVisibility] = React.useState<ColumnVisibilityState>({
+    search: false,
+  });
   const [pagination, setPagination] = React.useState<PaginationState>({
     pageIndex: 0,
     pageSize: 10,
   });
 
-  // Client-side filtering across criteria
   const filteredData = React.useMemo(() => {
-    let result = [...data];
-
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(
-        (a) =>
-          a.patientName.toLowerCase().includes(q) ||
-          a.reference.toLowerCase().includes(q) ||
-          a.patientPhone.includes(q) ||
-          a.patientMrn.toLowerCase().includes(q),
-      );
+    if (activeTab === "all") return data;
+    if (activeTab === "scheduled") {
+      return data.filter((d) => d.status === "SCHEDULED" || d.status === "CHECKED_IN");
     }
-
-    if (statusFilter !== "all") {
-      result = result.filter((a) => a.status === statusFilter);
+    if (activeTab === "confirmed") {
+      return data.filter((d) => d.status === "CONFIRMED");
     }
-
-    if (centreFilter !== "all") {
-      result = result.filter((a) => a.centreCode === centreFilter);
+    if (activeTab === "no_show") {
+      return data.filter((d) => d.status === "NO_SHOW");
     }
-
-    if (modalityFilter !== "all") {
-      result = result.filter((a) => a.modality === modalityFilter);
+    if (activeTab === "cancelled") {
+      return data.filter((d) => d.status === "CANCELLED");
     }
+    return data;
+  }, [data, activeTab]);
 
-    if (dateFilter !== "all") {
-      result = result.filter((a) => a.dateCategory === dateFilter);
-    }
+  const counts = React.useMemo(() => {
+    return {
+      all: data.length,
+      scheduled: data.filter((d) => d.status === "SCHEDULED" || d.status === "CHECKED_IN").length,
+      confirmed: data.filter((d) => d.status === "CONFIRMED").length,
+      no_show: data.filter((d) => d.status === "NO_SHOW").length,
+      cancelled: data.filter((d) => d.status === "CANCELLED").length,
+    };
+  }, [data]);
 
-    if (sorting === "earliest") {
-      result.sort((a, b) => a.timeSlot.localeCompare(b.timeSlot));
-    } else if (sorting === "latest") {
-      result.sort((a, b) => b.timeSlot.localeCompare(a.timeSlot));
-    } else if (sorting === "patient") {
-      result.sort((a, b) => a.patientName.localeCompare(b.patientName));
-    }
+  const table = useTable({
+    features: dataTableFeatures,
+    data: filteredData,
+    columns: appointmentsColumns,
+    state: {
+      rowSelection,
+      columnFilters,
+      sorting,
+      columnVisibility,
+      pagination,
+    },
+    getRowId: (row) => row.id,
+    enableRowSelection: true,
+    onRowSelectionChange: setRowSelection,
+    onColumnFiltersChange: setColumnFilters,
+    onSortingChange: setSorting,
+    onPaginationChange: setPagination,
+  });
 
-    return result;
-  }, [data, searchQuery, statusFilter, centreFilter, modalityFilter, dateFilter, sorting]);
-
-  const pageCount = Math.max(1, Math.ceil(filteredData.length / pagination.pageSize));
-  const currentPage = Math.min(pagination.pageIndex, pageCount - 1);
-  const pagedRows = React.useMemo(() => {
-    const start = currentPage * pagination.pageSize;
-    return filteredData.slice(start, start + pagination.pageSize);
-  }, [filteredData, currentPage, pagination.pageSize]);
-
+  const searchFilter = (table.getColumn("search")?.getFilterValue() as string) ?? "";
   const selectedCount = Object.keys(rowSelection).length;
 
-  const handleRowClick = (apt: ClinicalAppointment) => {
-    setSelectedAppointment(apt);
-    setSheetOpen(true);
-  };
-
-  const handleStatusChange = (id: string, newStatus: AppointmentStatus) => {
-    onDataChange?.((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, status: newStatus } : a)),
-    );
-    if (selectedAppointment && selectedAppointment.id === id) {
-      setSelectedAppointment((prev) => (prev ? { ...prev, status: newStatus } : null));
-    }
-  };
-
-  const handleBulkCheckIn = () => {
-    const ids = Object.keys(rowSelection);
-    onDataChange?.((prev) =>
-      prev.map((a) => (ids.includes(a.id) ? { ...a, status: "CHECKED_IN" as AppointmentStatus } : a)),
-    );
-    toast.success(`Bulk Check-in Complete`, {
-      description: `Checked in ${ids.length} selected patients.`,
-    });
-    setRowSelection({});
-  };
-
-  const handleExport = () => {
-    toast.success("Appointments Exported", {
-      description: `Exported ${filteredData.length} appointments to CSV format.`,
-    });
-  };
-
   return (
-    <div className="space-y-4">
-      {/* Filter and Action Bar */}
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex flex-wrap items-center gap-2 flex-1">
-          <div className="relative w-full sm:w-64">
-            <Search className="text-muted-foreground absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
-            <Input
-              placeholder="Search patient, MRN, ref, phone..."
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setPagination((p) => ({ ...p, pageIndex: 0 }));
-              }}
-              size="sm"
-              className="pl-8 h-9 text-xs"
-            />
-          </div>
-
-          {/* Centre selector */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="h-9 text-xs">
-                <Building2 className="size-3.5 mr-1" />
-                {centreOptions.find((c) => c.value === centreFilter)?.label ?? "All Centres"}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-44" align="start">
-              <DropdownMenuRadioGroup value={centreFilter} onValueChange={(v) => { setCentreFilter(v); setPagination((p) => ({ ...p, pageIndex: 0 })); }}>
-                {centreOptions.map((c) => (
-                  <DropdownMenuRadioItem key={c.value} value={c.value} className="text-xs">
-                    {c.label}
-                  </DropdownMenuRadioItem>
-                ))}
-              </DropdownMenuRadioGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          {/* Modality selector */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="h-9 text-xs">
-                <Repeat className="size-3.5 mr-1" />
-                {modalityOptions.find((m) => m.value === modalityFilter)?.label ?? "All Modalities"}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-44" align="start">
-              <DropdownMenuRadioGroup value={modalityFilter} onValueChange={(v) => { setModalityFilter(v); setPagination((p) => ({ ...p, pageIndex: 0 })); }}>
-                {modalityOptions.map((m) => (
-                  <DropdownMenuRadioItem key={m.value} value={m.value} className="text-xs">
-                    {m.label}
-                  </DropdownMenuRadioItem>
-                ))}
-              </DropdownMenuRadioGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          {/* Status selector */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="h-9 text-xs">
-                <UsersRound className="size-3.5 mr-1" />
-                {statusOptions.find((s) => s.value === statusFilter)?.label ?? "All Statuses"}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-48" align="start">
-              <DropdownMenuRadioGroup value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPagination((p) => ({ ...p, pageIndex: 0 })); }}>
-                {statusOptions.map((s) => (
-                  <DropdownMenuRadioItem key={s.value} value={s.value} className="text-xs">
-                    {s.label}
-                  </DropdownMenuRadioItem>
-                ))}
-              </DropdownMenuRadioGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          {/* Date range selector */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="h-9 text-xs">
-                <Calendar className="size-3.5 mr-1" />
-                {dateFilterOptions.find((d) => d.value === dateFilter)?.label ?? "All Dates"}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-40" align="start">
-              <DropdownMenuRadioGroup value={dateFilter} onValueChange={(v) => { setDateFilter(v); setPagination((p) => ({ ...p, pageIndex: 0 })); }}>
-                {dateFilterOptions.map((d) => (
-                  <DropdownMenuRadioItem key={d.value} value={d.value} className="text-xs">
-                    {d.label}
-                  </DropdownMenuRadioItem>
-                ))}
-              </DropdownMenuRadioGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
+    <div className="flex flex-col gap-3">
+      {/* Top Filter Bar */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        {/* Left: 5 Segmented Filter Tabs */}
+        <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-xl border border-border/50 text-xs overflow-x-auto">
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab("all");
+              table.setPageIndex(0);
+            }}
+            className={cn(
+              "px-3 py-1.5 rounded-lg font-medium transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap",
+              activeTab === "all"
+                ? "bg-background text-foreground shadow-xs font-semibold"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <span>All</span>
+            <span
+              className={cn(
+                "text-[10px] px-1.5 py-0.5 rounded-full font-mono",
+                activeTab === "all"
+                  ? "bg-muted text-foreground font-semibold"
+                  : "bg-muted/40 text-muted-foreground"
+              )}
+            >
+              {counts.all}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab("scheduled");
+              table.setPageIndex(0);
+            }}
+            className={cn(
+              "px-3 py-1.5 rounded-lg font-medium transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap",
+              activeTab === "scheduled"
+                ? "bg-background text-foreground shadow-xs font-semibold"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <span>Scheduled</span>
+            <span
+              className={cn(
+                "text-[10px] px-1.5 py-0.5 rounded-full font-mono",
+                activeTab === "scheduled"
+                  ? "bg-muted text-foreground font-semibold"
+                  : "bg-muted/40 text-muted-foreground"
+              )}
+            >
+              {counts.scheduled}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab("confirmed");
+              table.setPageIndex(0);
+            }}
+            className={cn(
+              "px-3 py-1.5 rounded-lg font-medium transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap",
+              activeTab === "confirmed"
+                ? "bg-background text-foreground shadow-xs font-semibold"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <span>Confirmed</span>
+            <span
+              className={cn(
+                "text-[10px] px-1.5 py-0.5 rounded-full font-mono",
+                activeTab === "confirmed"
+                  ? "bg-blue-500/15 text-blue-700 dark:text-blue-300 font-semibold"
+                  : "bg-muted/40 text-muted-foreground"
+              )}
+            >
+              {counts.confirmed}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab("no_show");
+              table.setPageIndex(0);
+            }}
+            className={cn(
+              "px-3 py-1.5 rounded-lg font-medium transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap",
+              activeTab === "no_show"
+                ? "bg-background text-foreground shadow-xs font-semibold"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <span>No-Show</span>
+            <span
+              className={cn(
+                "text-[10px] px-1.5 py-0.5 rounded-full font-mono",
+                activeTab === "no_show"
+                  ? "bg-amber-500/15 text-amber-700 dark:text-amber-400 font-semibold"
+                  : "bg-muted/40 text-muted-foreground"
+              )}
+            >
+              {counts.no_show}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab("cancelled");
+              table.setPageIndex(0);
+            }}
+            className={cn(
+              "px-3 py-1.5 rounded-lg font-medium transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap",
+              activeTab === "cancelled"
+                ? "bg-background text-foreground shadow-xs font-semibold"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <span>Cancelled</span>
+            <span
+              className={cn(
+                "text-[10px] px-1.5 py-0.5 rounded-full font-mono",
+                activeTab === "cancelled"
+                  ? "bg-destructive/15 text-destructive font-semibold"
+                  : "bg-muted/40 text-muted-foreground"
+              )}
+            >
+              {counts.cancelled}
+            </span>
+          </button>
         </div>
 
+        {/* Right: Batch Actions + Export + Search */}
         <div className="flex items-center gap-2">
           {selectedCount > 0 && (
-            <Button size="sm" variant="secondary" className="h-9 text-xs" onClick={handleBulkCheckIn}>
-              <UserCheck className="size-3.5 mr-1.5 text-emerald-600" />
+            <Button
+              size="sm"
+              variant="secondary"
+              className="h-9 text-xs cursor-pointer font-medium"
+              onClick={async () => {
+                const ids = Object.keys(rowSelection);
+                for (const id of ids) {
+                  if (id && !id.startsWith("mock-") && !id.startsWith("apt-")) {
+                    await updateAppointmentStatusServer(id, "CHECKED_IN");
+                  }
+                }
+                if (typeof window !== "undefined") {
+                  window.dispatchEvent(
+                    new CustomEvent("medserve:appointment-sync", {
+                      detail: { ids, status: "CHECKED_IN" },
+                    })
+                  );
+                }
+                toast.success(`Checked In ${selectedCount} selected patients`, {
+                  description: "Status updated in clinical waiting area.",
+                });
+                setRowSelection({});
+              }}
+            >
+              <UserCheck className="size-3.5 mr-1 text-emerald-600" />
               Check In ({selectedCount})
             </Button>
           )}
 
-          <Button variant="outline" size="sm" className="h-9 text-xs" onClick={handleExport}>
-            <Download className="size-3.5 mr-1.5" />
-            Export CSV
-          </Button>
+          {showExport && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 text-xs cursor-pointer"
+              onClick={() => {
+                toast.success("Appointments Exported", {
+                  description: `Exported ${filteredData.length} appointments to CSV format.`,
+                });
+              }}
+            >
+              <Download className="size-3.5 mr-1.5" />
+              Export CSV
+            </Button>
+          )}
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="h-9 text-xs">
-                <ArrowUpDown className="size-3.5 mr-1.5" />
-                Sort: {sorting === "earliest" ? "Earliest" : sorting === "latest" ? "Latest" : "Patient"}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-40">
-              <DropdownMenuRadioGroup value={sorting} onValueChange={(v) => setSorting(v as "earliest" | "latest" | "patient")}>
-                {[
-                  { value: "earliest", label: "Earliest slot" },
-                  { value: "latest", label: "Latest slot" },
-                  { value: "patient", label: "Patient A-Z" },
-                ].map((s) => (
-                  <DropdownMenuRadioItem key={s.value} value={s.value} className="text-xs">
-                    {s.label}
-                  </DropdownMenuRadioItem>
-                ))}
-              </DropdownMenuRadioGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div className="relative w-full sm:w-64">
+            <Search className="text-muted-foreground absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
+            <Input
+              placeholder="Search reference, patient, phone..."
+              value={searchFilter}
+              size="sm"
+              className="pl-8 h-9 text-xs"
+              onChange={(event) => {
+                table.getColumn("search")?.setFilterValue(event.target.value || undefined);
+                table.setPageIndex(0);
+              }}
+            />
+          </div>
         </div>
       </div>
 
-      {/* Main Table */}
-      <div className="rounded-xl border bg-card overflow-hidden">
-        <Table>
+      {/* Main Table: Sleek and borderless outer container */}
+      <div className="bg-card overflow-hidden rounded-lg">
+        <Table className="w-full table-fixed">
           <TableHeader className="bg-muted/30">
-            <TableRow className="h-10">
-              <TableHead className="w-10 px-3">
-                <Checkbox
-                  checked={selectedCount === pagedRows.length && pagedRows.length > 0}
-                  onCheckedChange={(checked) => {
-                    if (checked) {
-                      const sel: RowSelectionState = {};
-                      pagedRows.forEach((r) => (sel[r.id] = true));
-                      setRowSelection(sel);
-                    } else {
-                      setRowSelection({});
-                    }
-                  }}
-                  aria-label="Select all"
-                />
-              </TableHead>
-              <TableHead className="text-xs font-semibold text-foreground px-3">Patient</TableHead>
-              <TableHead className="text-xs font-semibold text-foreground px-3">Modality & Regimen</TableHead>
-              <TableHead className="text-xs font-semibold text-foreground px-3">Centre & Vault</TableHead>
-              <TableHead className="text-xs font-semibold text-foreground px-3">Time Slot</TableHead>
-              <TableHead className="text-xs font-semibold text-foreground px-3">Status</TableHead>
-              <TableHead className="text-xs font-semibold text-foreground px-3 text-right">Actions</TableHead>
-            </TableRow>
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow key={headerGroup.id}>
+                {headerGroup.headers.map((header) => (
+                  <TableHead
+                    key={header.id}
+                    colSpan={header.colSpan}
+                    className={cn(
+                      "h-10 p-3 font-semibold text-xs text-foreground",
+                      columnWidths[header.id] ?? ""
+                    )}
+                  >
+                    {header.isPlaceholder ? null : <table.FlexRender header={header} />}
+                  </TableHead>
+                ))}
+              </TableRow>
+            ))}
           </TableHeader>
           <TableBody>
-            {pagedRows.length > 0 ? (
-              pagedRows.map((apt) => {
-                const isSelected = Boolean(rowSelection[apt.id]);
-                return (
-                  <TableRow
-                    key={apt.id}
-                    data-state={isSelected && "selected"}
-                    className="h-15 cursor-pointer hover:bg-muted/40 transition-colors"
-                    onClick={() => handleRowClick(apt)}
-                  >
-                    <TableCell className="px-3" onClick={(e) => e.stopPropagation()}>
-                      <Checkbox
-                        checked={isSelected}
-                        onCheckedChange={(c) => {
-                          setRowSelection((prev) => {
-                            const next = { ...prev };
-                            if (c) next[apt.id] = true;
-                            else delete next[apt.id];
-                            return next;
-                          });
-                        }}
-                        aria-label={`Select ${apt.patientName}`}
-                      />
-                    </TableCell>
-
-                    <TableCell className="px-3">
-                      <div className="flex items-center gap-2.5">
-                        <Avatar className="size-8.5 rounded-lg bg-primary/10 text-primary font-semibold text-xs border border-primary/20 shrink-0">
-                          <AvatarFallback className="bg-primary/10 text-primary">
-                            {getInitials(apt.patientName)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-medium text-sm text-foreground truncate hover:underline">
-                              {apt.patientName}
-                            </span>
-                            <span className="font-mono text-[10px] text-muted-foreground">{apt.patientMrn}</span>
-                          </div>
-                          <div className="text-muted-foreground text-xs">{apt.patientPhone}</div>
-                        </div>
-                      </div>
-                    </TableCell>
-
-                    <TableCell className="px-3">
-                      <div className="space-y-0.5">
-                        <div className="flex items-center gap-1.5">
-                          {apt.modality === "Radiotherapy" ? (
-                            <Repeat className="size-3 text-primary" />
-                          ) : apt.modality === "Chemotherapy" ? (
-                            <HeartPulse className="size-3 text-blue-500" />
-                          ) : (
-                            <Stethoscope className="size-3 text-emerald-500" />
-                          )}
-                          <span className="text-xs font-semibold text-foreground truncate">{apt.serviceName}</span>
-                        </div>
-                        {apt.fractionInfo ? (
-                          <span className="text-[11px] text-primary font-medium block">{apt.fractionInfo}</span>
-                        ) : (
-                          <span className="text-[11px] text-muted-foreground font-mono block">{apt.reference}</span>
-                        )}
-                      </div>
-                    </TableCell>
-
-                    <TableCell className="px-3">
-                      <div className="space-y-0.5">
-                        <div className="flex items-center gap-1.5">
-                          <Badge variant="secondary" className="font-mono text-[10px] px-1.5 py-0">
-                            {apt.centreCode}
-                          </Badge>
-                          <span className="text-xs text-foreground font-medium">{apt.room}</span>
-                        </div>
-                        <span className="text-[11px] text-muted-foreground block truncate">{apt.oncologist}</span>
-                      </div>
-                    </TableCell>
-
-                    <TableCell className="px-3">
-                      <div className="space-y-0.5">
-                        <span className="font-mono text-xs font-semibold text-foreground block">{apt.timeSlot}</span>
-                        <span className="text-[11px] text-muted-foreground block">{apt.durationMinutes} mins</span>
-                      </div>
-                    </TableCell>
-
-                    <TableCell className="px-3">
-                      {apt.status === "IN_TREATMENT" && (
-                        <Badge variant="outline" className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30 gap-1.5 font-semibold text-[11px]">
-                          <span className="size-1.5 rounded-full bg-amber-500 animate-ping" />
-                          In Treatment
-                        </Badge>
+            {table.getRowModel().rows?.length ? (
+              table.getRowModel().rows.map((row) => (
+                <TableRow
+                  key={row.id}
+                  data-state={row.getIsSelected() && "selected"}
+                  className={cn(
+                    "h-14 transition-colors",
+                    row.original.status === "CONFIRMED"
+                      ? "opacity-55 bg-muted/30 hover:bg-muted/35"
+                      : row.original.status === "CANCELLED"
+                      ? "opacity-45 bg-muted/20"
+                      : "hover:bg-muted/40"
+                  )}
+                >
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell
+                      key={cell.id}
+                      className={cn(
+                        "p-3 text-xs",
+                        cell.column.id === "select" || cell.column.id === "actions"
+                          ? "text-center"
+                          : ""
                       )}
-                      {apt.status === "CHECKED_IN" && (
-                        <Badge variant="outline" className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 gap-1 font-semibold text-[11px]">
-                          <UserCheck className="size-3" />
-                          Checked In
-                        </Badge>
-                      )}
-                      {apt.status === "SCHEDULED" && (
-                        <Badge variant="outline" className="text-muted-foreground text-[11px]">
-                          Scheduled
-                        </Badge>
-                      )}
-                      {apt.status === "CONFIRMED" && (
-                        <Badge variant="outline" className="bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/30 text-[11px]">
-                          Confirmed
-                        </Badge>
-                      )}
-                      {apt.status === "COMPLETED" && (
-                        <Badge variant="secondary" className="text-muted-foreground text-[11px]">
-                          Completed
-                        </Badge>
-                      )}
-                      {apt.status === "RESCHEDULE_REQUESTED" && (
-                        <Badge variant="destructive" className="text-[11px] font-semibold">
-                          Reschedule Req.
-                        </Badge>
-                      )}
+                    >
+                      <table.FlexRender cell={cell} />
                     </TableCell>
-
-                    <TableCell className="px-3 text-right" onClick={(e) => e.stopPropagation()}>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8 text-xs font-medium"
-                        onClick={() => handleRowClick(apt)}
-                      >
-                        Clinical Details
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                );
-              })
+                  ))}
+                </TableRow>
+              ))
             ) : (
               <TableRow>
-                <TableCell colSpan={7} className="h-28 text-center text-xs text-muted-foreground">
-                  No appointments match the selected clinical filters.
+                <TableCell colSpan={appointmentsColumns.length} className="h-24 text-center text-xs text-muted-foreground">
+                  No appointments found matching your filters.
                 </TableCell>
               </TableRow>
             )}
@@ -486,43 +923,37 @@ export function AppointmentsTable({ data, onDataChange }: AppointmentsTableProps
       </div>
 
       {/* Pagination Footer */}
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-xs text-muted-foreground pt-1">
-        <div>
-          Showing {pagedRows.length} of {filteredData.length} appointments
+      <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between pt-1">
+        <div className="text-muted-foreground text-xs">
+          Showing {table.getRowModel().rows.length} of {data.length} appointments
           {selectedCount > 0 ? ` · ${selectedCount} selected` : ""}
         </div>
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
             size="icon-sm"
-            className="size-8"
-            onClick={() => setPagination((p) => ({ ...p, pageIndex: Math.max(0, p.pageIndex - 1) }))}
-            disabled={currentPage === 0}
+            className="size-8 cursor-pointer"
+            onClick={() => table.previousPage()}
+            disabled={!table.getCanPreviousPage()}
           >
             <ChevronLeft className="size-4" />
+            <span className="sr-only">Previous page</span>
           </Button>
-          <span className="font-medium px-1">
-            Page {currentPage + 1} of {pageCount}
+          <span className="text-xs font-medium px-1">
+            Page {pagination.pageIndex + 1} of {table.getPageCount() || 1}
           </span>
           <Button
             variant="outline"
             size="icon-sm"
-            className="size-8"
-            onClick={() => setPagination((p) => ({ ...p, pageIndex: Math.min(pageCount - 1, p.pageIndex + 1) }))}
-            disabled={currentPage >= pageCount - 1}
+            className="size-8 cursor-pointer"
+            onClick={() => table.nextPage()}
+            disabled={!table.getCanNextPage()}
           >
             <ChevronRight className="size-4" />
+            <span className="sr-only">Next page</span>
           </Button>
         </div>
       </div>
-
-      {/* Interactive slide-over drawer */}
-      <AppointmentDetailSheet
-        appointment={selectedAppointment}
-        open={sheetOpen}
-        onOpenChange={setSheetOpen}
-        onStatusChange={handleStatusChange}
-      />
     </div>
   );
 }

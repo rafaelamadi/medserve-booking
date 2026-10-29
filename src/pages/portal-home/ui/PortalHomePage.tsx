@@ -63,7 +63,7 @@ export function PatientHomeContent() {
     date: schedule.nextVisitDate || "2026-10-27",
     timeSlot: schedule.nextVisitTime || "08:30 AM",
     service: schedule.primaryService || patient.primaryService || "Radiotherapy Session",
-    room: schedule.room || "Linac Vault 1",
+    room: schedule.room || "",
   };
 
   return (

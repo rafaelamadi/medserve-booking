@@ -84,10 +84,10 @@ export function CentresManagement() {
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-lg font-semibold tracking-tight text-foreground">
-            Cancer Treatment Centres
+            MedServe Medical Centres
           </h2>
           <p className="text-sm text-muted-foreground">
-            Manage multi-centre facility addresses, contact channels, clinical leads, and active radiation vaults across Nigeria
+            Manage multi-centre facility addresses, contact channels, and daily appointment quotas across Lagos, Kano, and Umuahia
           </p>
         </div>
       </div>
@@ -114,7 +114,7 @@ export function CentresManagement() {
                   {centre.status === "ACTIVE" ? (
                     <span className="flex items-center gap-1.5 text-emerald-600">
                       <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                      Active Hub
+                      Active Centre
                     </span>
                   ) : (
                     centre.status
@@ -148,11 +148,11 @@ export function CentresManagement() {
 
               <div className="rounded-lg border bg-muted/30 p-2.5 space-y-1.5">
                 <div className="flex items-center justify-between text-muted-foreground">
-                  <span className="text-[11px] font-medium text-foreground">Director:</span>
+                  <span className="text-[11px] font-medium text-foreground">Director / Lead:</span>
                   <span className="font-medium text-foreground">{centre.medicalDirector}</span>
                 </div>
                 <div className="flex items-center justify-between text-muted-foreground">
-                  <span className="text-[11px] font-medium text-foreground">Physicist / RSO:</span>
+                  <span className="text-[11px] font-medium text-foreground">Clinical & Quality Lead:</span>
                   <span>{centre.leadPhysicist}</span>
                 </div>
                 <div className="flex items-center justify-between text-muted-foreground">
@@ -164,27 +164,11 @@ export function CentresManagement() {
                   <span className="font-semibold text-primary">{centre.dailyCapacity} patients/day</span>
                 </div>
               </div>
-
-              <div>
-                <p className="text-[11px] font-semibold text-foreground uppercase tracking-wider mb-1.5">
-                  Treatment Suites & Vaults ({centre.rooms.length})
-                </p>
-                <div className="flex flex-wrap gap-1">
-                  {centre.rooms.map((room, i) => (
-                    <span
-                      key={i}
-                      className="inline-block rounded-md bg-secondary/80 px-2 py-0.5 text-[10px] text-secondary-foreground font-mono"
-                    >
-                      {room}
-                    </span>
-                  ))}
-                </div>
-              </div>
             </CardContent>
 
             <div className="p-4 pt-0 border-t mt-auto flex items-center justify-between bg-card/50">
               <span className="text-[11px] text-muted-foreground">
-                {centre.activeVaultsCount} Active Radiation Vaults
+                {centre.code === "MLCC" ? "Comprehensive Oncology Hub" : "Diagnostic Imaging & Lab Centre"}
               </span>
               <Button
                 size="sm"

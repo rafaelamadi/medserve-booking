@@ -48,8 +48,8 @@ function ResourceForm({
 
   return (
     <form onSubmit={submit} className="grid grid-cols-2 gap-3 rounded-lg border border-zinc-200 bg-zinc-50 p-4">
-      <label className={labelCls}>Name (e.g. Halcyon)<input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} required /></label>
-      <label className={labelCls}>Type (e.g. LINAC, MRI, CT)<input className={inputCls} value={type} onChange={(e) => setType(e.target.value)} required /></label>
+      <label className={labelCls}>Resource Name<input className={inputCls} placeholder="e.g. Clinical Resource 1" value={name} onChange={(e) => setName(e.target.value)} required /></label>
+      <label className={labelCls}>Resource Type<input className={inputCls} placeholder="e.g. ROOM" value={type} onChange={(e) => setType(e.target.value)} required /></label>
       <label className="flex items-center gap-2 text-xs font-medium text-zinc-600">
         <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} /> Active
       </label>

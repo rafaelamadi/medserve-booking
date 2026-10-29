@@ -30,7 +30,7 @@ export function NextVisitHero({
     date: schedule?.nextVisitDate || "2026-10-27",
     timeSlot: schedule?.nextVisitTime || "08:30 AM",
     service: schedule?.primaryService || patient.primaryService || "Radiotherapy Session",
-    room: schedule?.room || "Linac Vault 1",
+    room: schedule?.room || "",
   };
 
   const nextSessionNumber = (patient.completedVisits || 0) + 1;
@@ -100,10 +100,10 @@ export function NextVisitHero({
                   <span>Location & Attending Team</span>
                 </div>
                 <div className="font-bold text-foreground text-sm">
-                  {nextVisit.room}
+                  {nextVisit.room || patient.centreName}
                 </div>
                 <p className="text-[11px] text-muted-foreground">
-                  Attending: <strong className="text-foreground">{patient.doctorInCharge}</strong>
+                  Attending: <strong className="text-foreground">{patient.doctorInCharge ? patient.doctorInCharge.replace(/^Attending\s+/i, "") : "Consultant"}</strong>
                 </p>
               </div>
             </div>

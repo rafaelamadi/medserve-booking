@@ -157,7 +157,7 @@ export function ResolveRescheduleDialog({
               </div>
               <div className="flex items-center gap-1.5 text-xs text-emerald-600 font-medium pt-1">
                 <CheckCircle2 className="size-3.5" />
-                <span>Slot Available (No Vault Conflict)</span>
+                <span>Slot Available (No Schedule Conflict)</span>
               </div>
             </div>
           </div>

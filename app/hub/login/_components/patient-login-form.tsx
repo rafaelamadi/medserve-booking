@@ -173,7 +173,7 @@ export function PatientLoginForm() {
           centreName: "MedServe LUTH Cancer Centre",
           primaryDiagnosis: "Oncology Care Plan",
           primaryService: "Oncology Consultation",
-          doctorInCharge: "Dr. Amara Okonkwo",
+          doctorInCharge: "Dr. Kachi",
           status: "ACTIVE",
           registrationDate: new Date().toISOString().split("T")[0],
           totalVisits: 1,

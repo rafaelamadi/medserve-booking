@@ -1,7 +1,6 @@
 import {
   Calendar,
   CalendarCheck,
-  HeartPulse,
   Home,
   LayoutDashboard,
   type LucideIcon,
@@ -65,12 +64,6 @@ export const sidebarItems: NavGroup[] = [
         url: "/dashboard/appointments",
         icon: CalendarCheck,
       },
-      {
-        id: "series",
-        title: "Visit Schedules",
-        url: "/dashboard/series",
-        icon: Repeat,
-      },
     ],
   },
   {
@@ -88,12 +81,6 @@ export const sidebarItems: NavGroup[] = [
         title: "Patient Registry",
         url: "/dashboard/patients",
         icon: Users,
-      },
-      {
-        id: "portal",
-        title: "Patient Home",
-        url: "/dashboard/portal",
-        icon: HeartPulse,
       },
     ],
   },

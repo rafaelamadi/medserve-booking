@@ -6,7 +6,7 @@ export const users = [
     email: "admin@medserve.ng",
     avatar: "",
     role: "Super Admin",
-    centres: ["MLCC (Lagos)", "MKDC (Kano)", "MUDC (Abuja)"],
+    centres: ["MLCC (Lagos)", "MKDC (Kano)", "MUDC (Umuahia)"],
   },
   {
     id: "alabi-02",
@@ -33,7 +33,16 @@ export const users = [
     email: "chioma@medserve.ng",
     avatar: "",
     role: "Staff Nurse",
-    centres: ["MUDC (Abuja)"],
+    centres: ["MUDC (Umuahia)"],
+  },
+  {
+    id: "chukwudi-05",
+    name: "Dr. Chukwudi",
+    username: "chukwudi@medserve.ng",
+    email: "chukwudi@medserve.ng",
+    avatar: "",
+    role: "Clinician",
+    centres: ["MUDC (Umuahia)"],
   },
 ];
 

@@ -5,6 +5,7 @@ export const clinicalAppointmentSchema = z.object({
   reference: z.string(),
   patientName: z.string(),
   patientPhone: z.string(),
+  patientEmail: z.string().optional(),
   patientMrn: z.string(),
   centreId: z.string(),
   centreCode: z.string(),

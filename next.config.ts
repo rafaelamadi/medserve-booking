@@ -24,7 +24,12 @@ const nextConfig: NextConfig = {
       },
       {
         source: "/hub/series",
-        destination: "/dashboard/series",
+        destination: "/dashboard/appointments",
+        permanent: false,
+      },
+      {
+        source: "/dashboard/series",
+        destination: "/dashboard/appointments",
         permanent: false,
       },
       {

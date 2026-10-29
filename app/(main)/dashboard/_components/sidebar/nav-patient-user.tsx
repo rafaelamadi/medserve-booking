@@ -2,8 +2,6 @@
 
 import { useRouter } from "next/navigation";
 import { Check, EllipsisVertical, HeartPulse, LogOut, Shield } from "lucide-react";
-import { toast } from "sonner";
-
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -26,9 +24,6 @@ export function NavPatientUser() {
   const { patient, setPatient } = usePatientPortalStore();
 
   const handleSignOut = () => {
-    toast.info("Signing out...", {
-      description: "Signed out of MedServe Care Home.",
-    });
     router.push("/hub/login");
   };
 

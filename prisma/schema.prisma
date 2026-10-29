@@ -134,8 +134,8 @@ model Service {
 model Resource {
   id       String  @id @default(cuid())
   centreId String
-  name     String // e.g. "Halcyon", "MRI Room 1"
-  type     String // e.g. "LINAC", "MRI", "CT"
+  name     String // e.g. "Resource 1", "Room 1"
+  type     String // e.g. "ROOM", "EQUIPMENT"
   isActive Boolean @default(true)
 
   centre         Centre          @relation(fields: [centreId], references: [id])
@@ -208,13 +208,24 @@ model Holiday {
 // ───────── People ─────────
 
 model Patient {
-  id        String    @id @default(cuid())
-  phone     String?   @unique // E.164 normalised
-  fullName  String
-  email     String?   @unique
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
+  id               String    @id @default(cuid())
+  mrn              String?   @unique
+  phone            String?   @unique // E.164 normalised
+  fullName         String
+  email            String?   @unique
+  gender           String?   @default("Female")
+  age              Int?      @default(45)
+  address          String?
+  state            String?   @default("Lagos State")
+  centreCode       String?   @default("MLCC")
+  centreName       String?   @default("MedServe LUTH Cancer Centre")
+  primaryDiagnosis String?   @default("General Clinical Record")
+  primaryService   String?   @default("Outpatient Care")
+  doctorInCharge   String?   @default("Attending Oncologist")
+  status           String?   @default("ACTIVE")
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
 
   appointments Appointment[]
   careSeries   CareSeries[]

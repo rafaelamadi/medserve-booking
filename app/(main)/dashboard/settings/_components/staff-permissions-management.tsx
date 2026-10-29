@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   ChevronDown,
   Download,
+  Loader2,
   Mail,
   MoreHorizontal,
   Phone,
@@ -52,10 +53,33 @@ import {
   STAFF_HUB_USERS_DATA,
   type StaffHubUser,
 } from "@/data/centre-settings-data";
+import {
+  getLiveStaffUsers,
+  enrollStaffMemberServer,
+  toggleStaffStatusServer,
+  resendStaffInviteServer,
+} from "@/server/staff";
+import { useCentreScope } from "@/shared/context/centre-scope-context";
 
-export function StaffPermissionsManagement() {
-  const [staffList, setStaffList] = React.useState<StaffHubUser[]>(STAFF_HUB_USERS_DATA);
-  const [centreFilter, setCentreFilter] = React.useState<string>("all");
+interface StaffPermissionsManagementProps {
+  staffList?: StaffHubUser[];
+  setStaffList?: React.Dispatch<React.SetStateAction<StaffHubUser[]>>;
+}
+
+export function StaffPermissionsManagement({
+  staffList: propStaffList,
+  setStaffList: propSetStaffList,
+}: StaffPermissionsManagementProps) {
+  const { selectedCentre, isAllCentres } = useCentreScope();
+
+  const [localStaffList, setLocalStaffList] = React.useState<StaffHubUser[]>(STAFF_HUB_USERS_DATA);
+  const staffList = propStaffList ?? localStaffList;
+  const setStaffList = propSetStaffList ?? setLocalStaffList;
+
+  const [isLoading, setIsLoading] = React.useState(false);
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [resendingStaffId, setResendingStaffId] = React.useState<string | null>(null);
+
   const [searchQuery, setSearchQuery] = React.useState("");
   const [inviteOpen, setInviteOpen] = React.useState(false);
 
@@ -63,13 +87,44 @@ export function StaffPermissionsManagement() {
   const [fullName, setFullName] = React.useState("");
   const [email, setEmail] = React.useState("");
   const [phone, setPhone] = React.useState("");
-  const [role, setRole] = React.useState<StaffHubUser["role"]>("RADIATION_ONCOLOGIST");
+  const [role, setRole] = React.useState<StaffHubUser["role"]>("CLINICIAN");
   const [primaryCentre, setPrimaryCentre] = React.useState<"MLCC" | "MKDC" | "MUDC">("MLCC");
+
+  // Sync primaryCentre with the active facility when opening the invite dialog
+  React.useEffect(() => {
+    if (inviteOpen) {
+      if (!isAllCentres && (selectedCentre.code === "MKDC" || selectedCentre.code === "MUDC" || selectedCentre.code === "MLCC")) {
+        setPrimaryCentre(selectedCentre.code as "MLCC" | "MKDC" | "MUDC");
+      }
+    }
+  }, [inviteOpen, isAllCentres, selectedCentre.code]);
+
+  // Load live staff on mount if not controlled externally
+  React.useEffect(() => {
+    let isMounted = true;
+    async function loadStaff() {
+      setIsLoading(true);
+      try {
+        const live = await getLiveStaffUsers();
+        if (isMounted && live && live.length > 0) {
+          setStaffList(live);
+        }
+      } catch (err) {
+        console.error("Failed to load staff list:", err);
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    }
+    loadStaff();
+    return () => {
+      isMounted = false;
+    };
+  }, [setStaffList]);
 
   const filteredStaff = React.useMemo(() => {
     let result = [...staffList];
-    if (centreFilter !== "all") {
-      result = result.filter((s) => s.primaryCentre === centreFilter);
+    if (!isAllCentres && selectedCentre.code) {
+      result = result.filter((s) => s.primaryCentre === selectedCentre.code);
     }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -83,53 +138,115 @@ export function StaffPermissionsManagement() {
       );
     }
     return result;
-  }, [staffList, centreFilter, searchQuery]);
+  }, [staffList, isAllCentres, selectedCentre.code, searchQuery]);
 
-  const handleInviteStaff = (e: React.FormEvent) => {
+  const handleInviteStaff = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!fullName.trim() || !email.trim()) {
+    const trimmedName = fullName.trim();
+    const trimmedEmail = email.trim();
+
+    if (!trimmedName || !trimmedEmail) {
       toast.error("Please fill in staff member name and email address.");
       return;
     }
 
-    const newMfaCode = `MFA-${Math.floor(1000 + Math.random() * 9000)}`;
+    setIsSubmitting(true);
+    try {
+      const res = await enrollStaffMemberServer({
+        fullName: trimmedName,
+        email: trimmedEmail,
+        phone: phone.trim() || "+234 800 000 0000",
+        role,
+        primaryCentre,
+      });
 
-    const newStaff: StaffHubUser = {
-      id: `usr-${Date.now()}`,
-      mfaCode: newMfaCode,
-      fullName,
-      email,
-      phone: phone || "+234 800 000 0000",
-      role,
-      roleLabel: "Clinical Staff Member",
-      primaryCentre,
-      status: "ACTIVE",
-      mfaEnabled: true,
-      lastLogin: "Just enrolled",
-      licenseNumber: "MDCN-TEMP-01",
-    };
+      if (res.success && res.staff) {
+        const enrolled = res.staff;
+        // Immediately update table
+        setStaffList((prev) => [enrolled, ...prev.filter((s) => s.id !== enrolled.id && s.email.toLowerCase() !== enrolled.email.toLowerCase())]);
 
-    setStaffList((prev) => [newStaff, ...prev]);
-    toast.success("Staff Member Enrolled", {
-      description: `MFA Code ${newMfaCode} assigned and invitation sent to ${email}.`,
-    });
-    setInviteOpen(false);
-    setFullName("");
-    setEmail("");
-    setPhone("");
+        toast.success("Staff Member Enrolled", {
+          description: `Assigned MFA Code ${enrolled.mfaCode}. Onboarding invitation email sent to ${enrolled.email}.`,
+        });
+
+        setInviteOpen(false);
+        setFullName("");
+        setEmail("");
+        setPhone("");
+      } else {
+        toast.error("Enrollment Failed", {
+          description: res.error || "Unable to save staff member to database.",
+        });
+      }
+    } catch (err) {
+      console.error("Enrollment error:", err);
+      toast.error("Enrollment Failed", {
+        description: "An unexpected error occurred while saving the staff member.",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleToggleStatus = (staffId: string) => {
+  const handleToggleStatus = async (staffId: string) => {
+    const staffMember = staffList.find((s) => s.id === staffId);
+    if (!staffMember) return;
+
+    const targetStatus = staffMember.status === "ACTIVE" ? "SUSPENDED" : "ACTIVE";
+
+    // Optimistic UI update
     setStaffList((prev) =>
-      prev.map((s) => {
-        if (s.id !== staffId) return s;
-        const nextStatus = s.status === "ACTIVE" ? "SUSPENDED" : "ACTIVE";
-        toast.info(`Status Updated: ${s.fullName}`, {
-          description: `Account has been set to ${nextStatus}.`,
-        });
-        return { ...s, status: nextStatus };
-      }),
+      prev.map((s) => (s.id === staffId ? { ...s, status: targetStatus } : s))
     );
+
+    try {
+      const res = await toggleStaffStatusServer(staffId, targetStatus);
+      if (res.success) {
+        toast.info(`Status Updated: ${staffMember.fullName}`, {
+          description: `Account has been set to ${targetStatus}.`,
+        });
+      } else {
+        // Revert on failure
+        setStaffList((prev) =>
+          prev.map((s) => (s.id === staffId ? { ...s, status: staffMember.status } : s))
+        );
+        toast.error("Status Update Failed", {
+          description: res.error || "Could not update status in database.",
+        });
+      }
+    } catch (err) {
+      console.error("Toggle status error:", err);
+      // Revert on failure
+      setStaffList((prev) =>
+        prev.map((s) => (s.id === staffId ? { ...s, status: staffMember.status } : s))
+      );
+      toast.error("Status Update Failed", {
+        description: "Network error updating staff account.",
+      });
+    }
+  };
+
+  const handleResendInvite = async (staffMember: StaffHubUser) => {
+    setResendingStaffId(staffMember.id);
+    try {
+      const res = await resendStaffInviteServer(staffMember);
+      if (res.success) {
+        toast.success("Invitation Resent", {
+          description: `Onboarding email with MFA code ${staffMember.mfaCode} resent to ${staffMember.email}.`,
+        });
+      } else {
+        toast.error("Failed to Resend Invite", {
+          description: res.error || "Could not deliver onboarding email.",
+        });
+      }
+    } catch (err) {
+      console.error("Resend invite error:", err);
+      toast.error("Failed to Resend Invite", {
+        description: "A network error occurred while attempting to send the email.",
+      });
+    } finally {
+      setResendingStaffId(null);
+    }
   };
 
   const handleDeleteStaff = (staffId: string, staffName: string) => {
@@ -164,18 +281,6 @@ export function StaffPermissionsManagement() {
         </div>
 
         <div className="flex items-center gap-2.5">
-          <Select value={centreFilter} onValueChange={setCentreFilter}>
-            <SelectTrigger className="w-[170px] h-10 text-sm">
-              <SelectValue placeholder="All Centres" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Centres ({staffList.length})</SelectItem>
-              <SelectItem value="MLCC">MLCC (MedServe LUTH)</SelectItem>
-              <SelectItem value="MKDC">MKDC (Kano)</SelectItem>
-              <SelectItem value="MUDC">MUDC (Abuja)</SelectItem>
-            </SelectContent>
-          </Select>
-
           <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
             <DialogTrigger asChild>
               <Button className="h-10 gap-1.5 text-sm">
@@ -183,77 +288,135 @@ export function StaffPermissionsManagement() {
                 Invite Staff Member
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-md">
-              <DialogHeader>
-                <DialogTitle>Enroll New Staff Member</DialogTitle>
-                <DialogDescription className="text-xs">
-                  Create staff profile with automated MFA authentication code assignment.
+            <DialogContent className="sm:max-w-lg p-6">
+              <DialogHeader className="space-y-1.5 pb-1">
+                <DialogTitle className="text-lg font-semibold tracking-tight">
+                  Enroll New Staff Member
+                </DialogTitle>
+                <DialogDescription className="text-xs text-muted-foreground">
+                  Create staff profile with Supabase persistence and automated MFA onboarding email dispatch.
                 </DialogDescription>
               </DialogHeader>
 
-              <form onSubmit={handleInviteStaff} className="space-y-3.5 py-2">
-                <div className="space-y-1">
-                  <Label htmlFor="s-name" className="text-xs">Full Legal Name *</Label>
+              <form onSubmit={handleInviteStaff} className="space-y-4 pt-2">
+                {/* Full Legal Name */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="s-name" className="text-xs font-medium text-foreground">
+                    Full Legal Name <span className="text-destructive">*</span>
+                  </Label>
                   <Input
                     id="s-name"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
-                    placeholder="e.g. Dr. Aminu Bello"
+                    placeholder="e.g. Dr. Bello Ibrahim"
+                    className="h-10 text-sm w-full"
                     required
+                    disabled={isSubmitting}
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label htmlFor="s-email" className="text-xs">Email Address *</Label>
+                {/* Email Address & Phone Number - 2 Columns with generous gaps */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5 min-w-0">
+                    <Label htmlFor="s-email" className="text-xs font-medium text-foreground">
+                      Email Address <span className="text-destructive">*</span>
+                    </Label>
                     <Input
                       id="s-email"
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="aminu@medserve.ng"
+                      placeholder="bello@medserve.ng"
+                      className="h-10 text-sm w-full"
                       required
+                      disabled={isSubmitting}
                     />
                   </div>
 
-                  <div className="space-y-1">
-                    <Label htmlFor="s-phone" className="text-xs">Phone Number *</Label>
+                  <div className="space-y-1.5 min-w-0">
+                    <Label htmlFor="s-phone" className="text-xs font-medium text-foreground">
+                      Phone Number
+                    </Label>
                     <Input
                       id="s-phone"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
-                      placeholder="+234 80..."
-                      required
+                      placeholder="+234 803 000 0000"
+                      className="h-10 text-sm w-full"
+                      disabled={isSubmitting}
                     />
                   </div>
                 </div>
 
-                <div className="space-y-1">
-                  <Label htmlFor="s-centre" className="text-xs">Assigned Facility Centre</Label>
-                  <Select
-                    value={primaryCentre}
-                    onValueChange={(val: "MLCC" | "MKDC" | "MUDC") => setPrimaryCentre(val)}
-                  >
-                    <SelectTrigger id="s-centre">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="MLCC">MLCC (MedServe LUTH)</SelectItem>
-                      <SelectItem value="MKDC">MKDC (Kano)</SelectItem>
-                      <SelectItem value="MUDC">MUDC (Abuja)</SelectItem>
-                    </SelectContent>
-                  </Select>
+                {/* Assigned Facility Centre & Role Permission - 2 Columns with no overlap */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5 min-w-0">
+                    <Label htmlFor="s-centre" className="text-xs font-medium text-foreground truncate block">
+                      Assigned Facility Centre
+                    </Label>
+                    <Select
+                      value={primaryCentre}
+                      onValueChange={(val: "MLCC" | "MKDC" | "MUDC") => setPrimaryCentre(val)}
+                      disabled={isSubmitting}
+                    >
+                      <SelectTrigger id="s-centre" className="h-10 text-sm w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="MLCC">MLCC (MedServe LUTH)</SelectItem>
+                        <SelectItem value="MKDC">MKDC (Kano)</SelectItem>
+                        <SelectItem value="MUDC">MUDC (Umuahia)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5 min-w-0">
+                    <Label htmlFor="s-role" className="text-xs font-medium text-foreground truncate block">
+                      Role Permission
+                    </Label>
+                    <Select
+                      value={role}
+                      onValueChange={(val: StaffHubUser["role"]) => setRole(val)}
+                      disabled={isSubmitting}
+                    >
+                      <SelectTrigger id="s-role" className="h-10 text-sm w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="CLINICIAN">Clinician</SelectItem>
+                        <SelectItem value="CENTRE_MANAGER">Centre Manager</SelectItem>
+                        <SelectItem value="STAFF">Clinical & Facility Staff</SelectItem>
+                        <SelectItem value="SUPER_ADMIN">System Admin</SelectItem>
+                        <SelectItem value="VIEWER">Read-Only Viewer</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
 
-                <DialogFooter className="pt-2">
+                <DialogFooter className="pt-3 gap-2 sm:gap-0">
                   <Button
                     type="button"
                     variant="outline"
                     onClick={() => setInviteOpen(false)}
+                    disabled={isSubmitting}
+                    className="h-10 text-xs font-medium"
                   >
                     Cancel
                   </Button>
-                  <Button type="submit">Generate MFA & Enroll</Button>
+                  <Button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="h-10 text-xs font-medium min-w-[170px]"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="size-3.5 animate-spin mr-1.5" />
+                        Saving & Sending...
+                      </>
+                    ) : (
+                      "Generate MFA & Enroll"
+                    )}
+                  </Button>
                 </DialogFooter>
               </form>
             </DialogContent>
@@ -284,7 +447,7 @@ export function StaffPermissionsManagement() {
               <TableHead className="w-[120px] font-semibold text-sm text-foreground py-3.5">
                 Status
               </TableHead>
-              <TableHead className="w-[120px] text-right font-semibold text-sm text-foreground py-3.5">
+              <TableHead className="w-[130px] text-right font-semibold text-sm text-foreground py-3.5">
                 Action
               </TableHead>
             </TableRow>
@@ -297,20 +460,25 @@ export function StaffPermissionsManagement() {
                   colSpan={7}
                   className="h-32 text-center text-sm text-muted-foreground"
                 >
-                  No staff members match your search.
+                  {searchQuery.trim()
+                    ? "No staff members match your search."
+                    : isAllCentres
+                      ? "No staff accounts registered yet."
+                      : `No staff accounts registered for ${selectedCentre.code}.`}
                 </TableCell>
               </TableRow>
             ) : (
               filteredStaff.map((staff) => (
                 <TableRow key={staff.id} className="hover:bg-muted/40 transition-colors">
-                  {/* 1. MFA Code (plain text, no pill - like patient ref no.) */}
+                  {/* 1. MFA Code */}
                   <TableCell className="font-mono text-sm font-semibold text-primary py-3.5">
                     {staff.mfaCode}
                   </TableCell>
 
-                  {/* 2. Name (clean text, no box initials) */}
+                  {/* 2. Name */}
                   <TableCell className="py-3.5 font-medium text-sm text-foreground">
-                    {staff.fullName}
+                    <div>{staff.fullName}</div>
+                    <div className="text-[11px] text-muted-foreground font-normal">{staff.roleLabel}</div>
                   </TableCell>
 
                   {/* 3. Email */}
@@ -339,47 +507,80 @@ export function StaffPermissionsManagement() {
                     </Badge>
                   </TableCell>
 
-                  {/* 6. Status */}
+                  {/* 6. Status (Emerald for ACTIVE, Amber for PENDING, Rose for SUSPENDED) */}
                   <TableCell className="py-3.5">
-                    <Badge
-                      variant={staff.status === "ACTIVE" ? "outline" : "secondary"}
-                      className={
-                        staff.status === "ACTIVE"
-                          ? "text-emerald-600 bg-emerald-500/10 border-emerald-500/20 text-xs font-semibold"
-                          : "text-amber-700 bg-amber-500/10 border-amber-500/20 dark:text-amber-400 text-xs font-semibold"
-                      }
-                    >
-                      {staff.status}
-                    </Badge>
+                    {staff.status === "ACTIVE" ? (
+                      <Badge
+                        variant="outline"
+                        className="text-emerald-700 bg-emerald-500/10 border-emerald-500/25 dark:text-emerald-400 text-xs font-semibold"
+                      >
+                        ACTIVE
+                      </Badge>
+                    ) : staff.status === "PENDING" || staff.status === "INVITED" ? (
+                      <Badge
+                        variant="outline"
+                        className="text-amber-700 bg-amber-500/10 border-amber-500/25 dark:text-amber-400 text-xs font-semibold"
+                      >
+                        PENDING
+                      </Badge>
+                    ) : (
+                      <Badge
+                        variant="outline"
+                        className="text-rose-700 bg-rose-500/10 border-rose-500/25 dark:text-rose-400 text-xs font-semibold"
+                      >
+                        SUSPENDED
+                      </Badge>
+                    )}
                   </TableCell>
 
-                  {/* 7. Action: Dropdown with suspend default & delete option */}
+                  {/* 7. Action: Dropdown with Resend Invite, Suspend/Activate, and Delete */}
                   <TableCell className="text-right py-3.5">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button
                           variant="outline"
                           size="sm"
-                          className="h-8 min-w-[96px] justify-between text-xs font-medium border-border/80 bg-background hover:bg-muted"
+                          className="h-8 min-w-[102px] justify-between text-xs font-medium border-border/80 bg-background hover:bg-muted"
                         >
-                          <span>{staff.status === "ACTIVE" ? "Suspend" : "Activate"}</span>
+                          <span>
+                            {staff.status === "ACTIVE"
+                              ? "Suspend"
+                              : staff.status === "SUSPENDED"
+                                ? "Activate"
+                                : "Pending"}
+                          </span>
                           <ChevronDown className="size-3.5 text-muted-foreground ml-1" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-36">
+                      <DropdownMenuContent align="end" className="w-44">
+                        {(staff.status === "PENDING" || staff.status === "INVITED") && (
+                          <DropdownMenuItem
+                            onClick={() => handleResendInvite(staff)}
+                            disabled={resendingStaffId === staff.id}
+                            className="cursor-pointer text-xs"
+                          >
+                            {resendingStaffId === staff.id ? (
+                              <Loader2 className="size-3.5 mr-2 animate-spin text-primary" />
+                            ) : (
+                              <Mail className="size-3.5 mr-2 text-primary" />
+                            )}
+                            <span>Resend Invite</span>
+                          </DropdownMenuItem>
+                        )}
+
                         <DropdownMenuItem
                           onClick={() => handleToggleStatus(staff.id)}
                           className="cursor-pointer text-xs"
                         >
                           {staff.status === "ACTIVE" ? (
                             <>
-                              <XCircle className="size-3.5 mr-2 text-amber-600" />
-                              <span>Suspend</span>
+                              <XCircle className="size-3.5 mr-2 text-rose-600" />
+                              <span>Suspend Account</span>
                             </>
                           ) : (
                             <>
                               <CheckCircle2 className="size-3.5 mr-2 text-emerald-600" />
-                              <span>Activate</span>
+                              <span>Activate Account</span>
                             </>
                           )}
                         </DropdownMenuItem>

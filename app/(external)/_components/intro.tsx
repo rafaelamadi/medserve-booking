@@ -10,7 +10,7 @@ export async function Intro() {
           MedServe Oncology Network & Clinical Booking System
         </h1>
         <p className="text-muted-foreground text-sm leading-6 sm:text-base">
-          Precision oncology appointment scheduling, multi-fraction radiotherapy & chemotherapy care series, and patient care tracking across Nigeria (MLCC Lagos, MKDC Kano, and MUDC Abuja).
+          Precision oncology and diagnostic appointment scheduling, multi-fraction care series, and patient care tracking across Nigeria (MLCC Lagos, MKDC Kano, and MUDC Umuahia).
         </p>
       </div>
 

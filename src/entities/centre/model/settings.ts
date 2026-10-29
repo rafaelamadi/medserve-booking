@@ -11,30 +11,11 @@ export interface CancerCentreDetail {
   medicalDirector: string;
   leadPhysicist: string;
   status: "ACTIVE" | "MAINTENANCE" | "INACTIVE";
-  activeVaultsCount: number;
   dailyCapacity: number;
   operatingHours: {
     weekdays: string;
     weekends: string;
   };
-  rooms: string[];
-}
-
-export interface ClinicalMachineVault {
-  id: string;
-  name: string;
-  model: string;
-  manufacturer: "Elekta" | "Varian" | "Siemens";
-  centreCode: "MLCC" | "MKDC" | "MUDC";
-  vaultRoom: string;
-  type: "LINAC" | "CT_SIMULATOR" | "BRACHYTHERAPY";
-  modalities: string[];
-  status: "OPERATIONAL" | "SCHEDULED_MAINTENANCE" | "CALIBRATION_QA" | "OFFLINE";
-  uptimePercentage: number;
-  lastDailyQa: string;
-  qaOfficer: string;
-  commissionedDate: string;
-  maxDailyFractions: number;
 }
 
 export interface OperatingScheduleRule {
@@ -64,10 +45,10 @@ export interface StaffHubUser {
   fullName: string;
   email: string;
   phone: string;
-  role: "CHIEF_ONCOLOGIST" | "RADIATION_ONCOLOGIST" | "MEDICAL_PHYSICIST" | "RADIATION_THERAPIST" | "ONCOLOGY_NURSE" | "CENTRE_ADMIN";
+  role: "SUPER_ADMIN" | "CENTRE_MANAGER" | "CLINICIAN" | "STAFF" | "VIEWER";
   roleLabel: string;
   primaryCentre: "MLCC" | "MKDC" | "MUDC";
-  status: "ACTIVE" | "ON_LEAVE" | "SUSPENDED";
+  status: "ACTIVE" | "PENDING" | "INVITED" | "ON_LEAVE" | "SUSPENDED";
   mfaEnabled: boolean;
   lastLogin: string;
   licenseNumber: string;
@@ -84,156 +65,52 @@ export const CANCER_CENTRES_DATA: CancerCentreDetail[] = [
     address: "LUTH Complex, Idi-Araba, Surulere, Lagos, Nigeria",
     phone: "+234 1 888 0300",
     email: "luth-desk@medserve.ng",
-    medicalDirector: "Dr. Kachi (Chief Clinical Oncologist)",
-    leadPhysicist: "Engr. Babatunde Alabi, RSO",
+    medicalDirector: "Dr. Kachi",
+    leadPhysicist: "Dr. Alabi",
     status: "ACTIVE",
-    activeVaultsCount: 3,
     dailyCapacity: 65,
     operatingHours: {
       weekdays: "07:30 AM – 06:00 PM",
       weekends: "Emergency On-Call Only",
     },
-    rooms: [
-      "Linac Vault 1 (Elekta Versa HD)",
-      "CT Simulation Suite (Siemens RT)",
-      "Brachytherapy Suite (Flexitron HDR)",
-      "Chemotherapy Infusion Bay",
-      "Consulting Room 101",
-    ],
   },
   {
     id: "centre-mkdc",
     code: "MKDC",
-    name: "Kano Diagnostic & Oncology Centre",
-    fullName: "MedServe Kano Diagnostic & Cancer Care Centre",
+    name: "MedServe Kano Diagnostic Centre",
+    fullName: "MedServe Kano Diagnostic Centre",
     city: "Kano",
     state: "Kano State",
     address: "Audu Bako Way, Nassarawa GRA, Kano, Nigeria",
     phone: "+234 64 920 114",
     email: "kano-hub@medserve.ng",
-    medicalDirector: "Dr. Farouk (Consultant Radiation Oncologist)",
-    leadPhysicist: "M. Danjuma, Medical Physicist",
+    medicalDirector: "Dr. Bello",
+    leadPhysicist: "Clinical Team Lead",
     status: "ACTIVE",
-    activeVaultsCount: 2,
-    dailyCapacity: 45,
+    dailyCapacity: 50,
     operatingHours: {
       weekdays: "08:00 AM – 05:00 PM",
-      weekends: "Closed (On-Call physicist)",
+      weekends: "Closed (On-Call imaging)",
     },
-    rooms: [
-      "Linac Vault 2 (Varian TrueBeam)",
-      "CT Simulator Room 1",
-      "Infusion Suite B",
-      "Clinical Review Room 3",
-    ],
   },
   {
     id: "centre-mudc",
     code: "MUDC",
-    name: "Abuja Diagnostic & Radiotherapy Centre",
-    fullName: "MedServe Umuahia / Abuja Diagnostic & Radiotherapy Complex",
-    city: "Abuja",
-    state: "FCT Abuja",
-    address: "Central Business District, FCT Abuja, Nigeria",
-    phone: "+234 9 461 8800",
-    email: "abuja-clinical@medserve.ng",
-    medicalDirector: "Dr. Nnamdi (Consultant Clinical Oncologist)",
-    leadPhysicist: "Dr. Chidi Okeke, Chief Physicist",
+    name: "MedServe Umuahia Diagnostic Centre",
+    fullName: "MedServe Umuahia Diagnostic Centre",
+    city: "Umuahia",
+    state: "Abia State",
+    address: "MedServe Diagnostic Complex, Umuahia, Abia State, Nigeria",
+    phone: "+234 800 000 0003",
+    email: "umuahia-desk@medserve.ng",
+    medicalDirector: "Dr. Chukwudi",
+    leadPhysicist: "Nurse Chioma",
     status: "ACTIVE",
-    activeVaultsCount: 2,
-    dailyCapacity: 40,
+    dailyCapacity: 45,
     operatingHours: {
       weekdays: "08:00 AM – 05:30 PM",
       weekends: "Closed",
     },
-    rooms: [
-      "Linac Vault 1 (Varian Halcyon)",
-      "Diagnostic Imaging Room A",
-      "Outpatient Clinic 2",
-    ],
-  },
-];
-
-export const CLINICAL_MACHINES_DATA: ClinicalMachineVault[] = [
-  {
-    id: "mac-01",
-    name: "Elekta Versa HD (Vault 1)",
-    model: "Versa HD High-Definition Digital Linac",
-    manufacturer: "Elekta",
-    centreCode: "MLCC",
-    vaultRoom: "Linac Vault 1 (Elekta Versa HD)",
-    type: "LINAC",
-    modalities: ["VMAT (Volumetric Modulated Arc Therapy)", "IMRT", "SRS / SBRT Stereotactic", "3D-CRT", "Agility 160-leaf MLC"],
-    status: "OPERATIONAL",
-    uptimePercentage: 99.4,
-    lastDailyQa: "Today at 06:45 AM (Passed)",
-    qaOfficer: "Engr. Babatunde Alabi",
-    commissionedDate: "2022-03-15",
-    maxDailyFractions: 45,
-  },
-  {
-    id: "mac-02",
-    name: "Varian TrueBeam (Vault 2)",
-    model: "TrueBeam Radiotherapy Delivery System v2.7",
-    manufacturer: "Varian",
-    centreCode: "MKDC",
-    vaultRoom: "Linac Vault 2 (Varian TrueBeam)",
-    type: "LINAC",
-    modalities: ["RapidArc VMAT", "IMRT", "Respiratory Gating", "6MV / 10MV FFF High Dose-Rate"],
-    status: "OPERATIONAL",
-    uptimePercentage: 98.8,
-    lastDailyQa: "Today at 07:10 AM (Passed)",
-    qaOfficer: "M. Danjuma",
-    commissionedDate: "2023-08-20",
-    maxDailyFractions: 40,
-  },
-  {
-    id: "mac-03",
-    name: "Varian Halcyon (Vault 1)",
-    model: "Halcyon Fast-Throughput Ring Gantry Linac",
-    manufacturer: "Varian",
-    centreCode: "MUDC",
-    vaultRoom: "Linac Vault 1 (Varian Halcyon)",
-    type: "LINAC",
-    modalities: ["Fast VMAT Delivery", "Dual-Layer MLC", "iCBCT Daily Imaging", "Hypofractionated Regimens"],
-    status: "OPERATIONAL",
-    uptimePercentage: 99.1,
-    lastDailyQa: "Today at 07:25 AM (Passed)",
-    qaOfficer: "Dr. Chidi Okeke",
-    commissionedDate: "2024-01-10",
-    maxDailyFractions: 50,
-  },
-  {
-    id: "mac-04",
-    name: "Siemens Somatom Confidence RT CT Sim",
-    model: "Somatom Confidence 64-Slice Dedicated RT Simulator",
-    manufacturer: "Siemens",
-    centreCode: "MLCC",
-    vaultRoom: "CT Simulation Suite (Siemens RT)",
-    type: "CT_SIMULATOR",
-    modalities: ["4D Respiratory Motion Management", "DirectDensity CT Reconstruction", "80cm Large Bore"],
-    status: "OPERATIONAL",
-    uptimePercentage: 99.7,
-    lastDailyQa: "Today at 07:00 AM (Passed)",
-    qaOfficer: "Engr. Babatunde Alabi",
-    commissionedDate: "2022-04-01",
-    maxDailyFractions: 18,
-  },
-  {
-    id: "mac-05",
-    name: "Elekta Flexitron HDR Afterloader",
-    model: "Flexitron 192-Ir HDR Brachytherapy System",
-    manufacturer: "Elekta",
-    centreCode: "MLCC",
-    vaultRoom: "Brachytherapy Suite (Flexitron HDR)",
-    type: "BRACHYTHERAPY",
-    modalities: ["Gynaecological HDR Brachytherapy", "Intracavitary / Interstitial Implants", "Real-time Source Tracking"],
-    status: "OPERATIONAL",
-    uptimePercentage: 99.0,
-    lastDailyQa: "Yesterday at 05:00 PM (Passed)",
-    qaOfficer: "Engr. Babatunde Alabi",
-    commissionedDate: "2022-09-12",
-    maxDailyFractions: 8,
   },
 ];
 
@@ -327,7 +204,7 @@ export const NIGERIAN_HOLIDAYS_DATA: CentreHoliday[] = [
     type: "RELIGIOUS_HOLIDAY",
     centreScope: "ALL",
     closed: true,
-    description: "Islamic celebration marking the end of Ramadan. Routine Linac fractions paused.",
+    description: "Islamic celebration marking the end of Ramadan.",
   },
   {
     id: "hol-03",
@@ -401,26 +278,17 @@ export const NIGERIAN_HOLIDAYS_DATA: CentreHoliday[] = [
     closed: true,
     description: "Public holiday following Christmas.",
   },
-  {
-    id: "hol-11",
-    date: "2026-11-14",
-    title: "Linac Vault 1 Bi-Annual Dosimetry Calibration",
-    type: "CENTRE_MAINTENANCE",
-    centreScope: "MLCC",
-    closed: false,
-    description: "Elekta engineer on-site for ionization chamber and beam flatness QA. Booking cap reduced.",
-  },
 ];
 
 export const STAFF_HUB_USERS_DATA: StaffHubUser[] = [
   {
-    id: "usr-01",
+    id: "usr-kachi",
     mfaCode: "MFA-7819",
     fullName: "Dr. Kachi",
     email: "kachi@medserve.ng",
     phone: "+234 803 100 2931",
-    role: "CHIEF_ONCOLOGIST",
-    roleLabel: "Chief Clinical Oncologist & Medical Director",
+    role: "CLINICIAN",
+    roleLabel: "Attending Clinician & Medical Director",
     primaryCentre: "MLCC",
     status: "ACTIVE",
     mfaEnabled: true,
@@ -428,87 +296,73 @@ export const STAFF_HUB_USERS_DATA: StaffHubUser[] = [
     licenseNumber: "MDCN-RO-7819",
   },
   {
-    id: "usr-02",
+    id: "usr-alabi",
     mfaCode: "MFA-8420",
-    fullName: "Dr. Farouk",
-    email: "farouk@medserve.ng",
+    fullName: "Dr. Alabi",
+    email: "alabi@medserve.ng",
     phone: "+234 802 441 9022",
-    role: "RADIATION_ONCOLOGIST",
-    roleLabel: "Consultant Radiation Oncologist",
-    primaryCentre: "MKDC",
+    role: "CLINICIAN",
+    roleLabel: "Consultant Clinician",
+    primaryCentre: "MLCC",
     status: "ACTIVE",
     mfaEnabled: true,
     lastLogin: "Today at 08:02 AM",
     licenseNumber: "MDCN-RO-8420",
   },
   {
-    id: "usr-03",
+    id: "usr-bello",
     mfaCode: "MFA-6190",
-    fullName: "Dr. Nnamdi",
-    email: "nnamdi@medserve.ng",
+    fullName: "Dr. Bello",
+    email: "bello@medserve.ng",
     phone: "+234 809 311 4055",
-    role: "RADIATION_ONCOLOGIST",
-    roleLabel: "Consultant Clinical Oncologist",
-    primaryCentre: "MUDC",
+    role: "CLINICIAN",
+    roleLabel: "Consultant Clinician",
+    primaryCentre: "MKDC",
     status: "ACTIVE",
     mfaEnabled: true,
     lastLogin: "Yesterday at 04:30 PM",
     licenseNumber: "MDCN-RO-6190",
   },
   {
-    id: "usr-04",
+    id: "usr-chukwudi",
     mfaCode: "MFA-2041",
-    fullName: "Engr. Babatunde Alabi",
-    email: "babatunde.physicist@medserve.ng",
+    fullName: "Dr. Chukwudi",
+    email: "chukwudi@medserve.ng",
     phone: "+234 805 229 1184",
-    role: "MEDICAL_PHYSICIST",
-    roleLabel: "Chief Medical Physicist & RSO",
-    primaryCentre: "MLCC",
+    role: "CLINICIAN",
+    roleLabel: "Consultant Clinician",
+    primaryCentre: "MUDC",
     status: "ACTIVE",
     mfaEnabled: true,
     lastLogin: "Today at 06:40 AM",
-    licenseNumber: "NNRA-MP-2041",
+    licenseNumber: "MDCN-RO-2041",
   },
   {
-    id: "usr-05",
+    id: "usr-chioma",
     mfaCode: "MFA-5120",
-    fullName: "Sister Grace Danjuma",
-    email: "grace.nurse@medserve.ng",
+    fullName: "Nurse Chioma",
+    email: "chioma@medserve.ng",
     phone: "+234 806 910 3342",
-    role: "ONCOLOGY_NURSE",
-    roleLabel: "Head Oncology Nurse & Patient Triage",
-    primaryCentre: "MLCC",
+    role: "STAFF",
+    roleLabel: "Clinical & Facility Staff",
+    primaryCentre: "MUDC",
     status: "ACTIVE",
     mfaEnabled: true,
     lastLogin: "Today at 07:15 AM",
     licenseNumber: "NMCN-RN-5120",
   },
   {
-    id: "usr-06",
-    mfaCode: "MFA-3091",
-    fullName: "Ibrahim Sani",
-    email: "ibrahim.rtt@medserve.ng",
-    phone: "+234 807 882 1099",
-    role: "RADIATION_THERAPIST",
-    roleLabel: "Lead Radiation Therapy Technologist (RTT)",
-    primaryCentre: "MKDC",
+    id: "usr-admin",
+    mfaCode: "MFA-0001",
+    fullName: "MedServe Admin",
+    email: "admin@medserve.ng",
+    phone: "+234 800 000 0001",
+    role: "SUPER_ADMIN",
+    roleLabel: "System Administrator",
+    primaryCentre: "MLCC",
     status: "ACTIVE",
     mfaEnabled: true,
-    lastLogin: "Today at 07:45 AM",
-    licenseNumber: "RRBN-RTT-3091",
-  },
-  {
-    id: "usr-07",
-    mfaCode: "MFA-0128",
-    fullName: "Amara Nwankwo",
-    email: "amara.admin@medserve.ng",
-    phone: "+234 803 400 9182",
-    role: "CENTRE_ADMIN",
-    roleLabel: "Centre Operations Coordinator",
-    primaryCentre: "MUDC",
-    status: "SUSPENDED",
-    mfaEnabled: false,
-    lastLogin: "Yesterday at 04:10 PM",
-    licenseNumber: "ADMIN-OPS-012",
+    lastLogin: "Today at 07:00 AM",
+    licenseNumber: "SYS-ADMIN-01",
   },
 ];

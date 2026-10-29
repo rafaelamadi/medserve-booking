@@ -8,15 +8,13 @@ import {
   CalendarCheck,
   CheckCircle2,
   Clock,
-  ClockAlert,
   FileText,
   HeartPulse,
-  Phone,
-  PlayCircle,
   Repeat,
   Send,
   Stethoscope,
   UserCheck,
+  UserX,
   X,
   XCircle,
 } from "lucide-react";
@@ -38,9 +36,10 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { AppointmentStatus, ClinicalAppointment } from "@/data/clinical-queue-data";
 import { getInitials } from "@/lib/utils";
+import { updateAppointmentStatusServer, type ClinicalAppointmentRow } from "@/server/appointments";
 
 interface AppointmentDetailSheetProps {
-  appointment: ClinicalAppointment | null;
+  appointment: ClinicalAppointment | ClinicalAppointmentRow | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onStatusChange?: (id: string, newStatus: AppointmentStatus) => void;
@@ -52,34 +51,33 @@ export function AppointmentDetailSheet({
   onOpenChange,
   onStatusChange,
 }: AppointmentDetailSheetProps) {
-  const [activeTab, setActiveTab] = useState<"overview" | "timeline" | "reschedule">("overview");
-  const [rescheduleDate, setRescheduleDate] = useState("");
-  const [rescheduleTime, setRescheduleTime] = useState("");
-  const [rescheduleReason, setRescheduleReason] = useState("");
+  const [activeTab, setActiveTab] = useState<"overview" | "timeline">("overview");
   const [followUpDate, setFollowUpDate] = useState("");
 
   if (!appointment) return null;
 
   const currentStatus = appointment.status;
 
-  const handleUpdateStatus = (newStatus: AppointmentStatus, label: string) => {
-    onStatusChange?.(appointment.id, newStatus);
+  const handleUpdateStatus = async (
+    newStatus: "CHECKED_IN" | "CONFIRMED" | "NO_SHOW" | "SCHEDULED",
+    label: string
+  ) => {
+    onStatusChange?.(appointment.id, newStatus as AppointmentStatus);
     toast.success(`Status Updated: ${label}`, {
       description: `${appointment.patientName} (${appointment.reference}) is now ${label.toLowerCase()}.`,
     });
-  };
 
-  const handleApplyReschedule = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!rescheduleDate || !rescheduleTime) {
-      toast.error("Please specify both new date and time slot.");
-      return;
+    if (appointment.id && !appointment.id.startsWith("mock-") && !appointment.id.startsWith("apt-")) {
+      await updateAppointmentStatusServer(appointment.id, newStatus);
     }
-    toast.success("Reschedule Slot Proposed", {
-      description: `New session slot: ${rescheduleDate} at ${rescheduleTime}. Notification queued for ${appointment.patientName}.`,
-    });
-    onStatusChange?.(appointment.id, "RESCHEDULE_REQUESTED");
-    setActiveTab("overview");
+
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("medserve:appointment-sync", {
+          detail: { id: appointment.id, status: newStatus },
+        })
+      );
+    }
   };
 
   const handleScheduleFollowUp = (e: React.FormEvent) => {
@@ -130,40 +128,28 @@ export function AppointmentDetailSheet({
               <span className="text-xs text-muted-foreground font-medium">{appointment.room}</span>
             </div>
             <div>
-              {currentStatus === "IN_TREATMENT" && (
-                <Badge variant="outline" className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30 gap-1.5 font-semibold">
-                  <span className="size-1.5 rounded-full bg-amber-500 animate-ping" />
-                  In Treatment
-                </Badge>
-              )}
               {currentStatus === "CHECKED_IN" && (
                 <Badge variant="outline" className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 gap-1 font-semibold">
                   <UserCheck className="size-3" />
                   Checked In
                 </Badge>
               )}
-              {currentStatus === "SCHEDULED" && (
+              {currentStatus === "CONFIRMED" && (
+                <Badge variant="outline" className="bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/30 gap-1 font-semibold">
+                  <CheckCircle2 className="size-3" />
+                  Confirmed (Done)
+                </Badge>
+              )}
+              {currentStatus === "CANCELLED" && (
+                <Badge variant="outline" className="text-destructive border-destructive/30 gap-1 bg-destructive/5 font-semibold">
+                  <XCircle className="size-3" />
+                  Cancelled
+                </Badge>
+              )}
+              {currentStatus !== "CHECKED_IN" && currentStatus !== "CONFIRMED" && currentStatus !== "CANCELLED" && (
                 <Badge variant="outline" className="text-muted-foreground gap-1">
                   <Clock className="size-3" />
                   Scheduled ({appointment.timeSlot})
-                </Badge>
-              )}
-              {currentStatus === "CONFIRMED" && (
-                <Badge variant="outline" className="bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/30 gap-1">
-                  <CheckCircle2 className="size-3" />
-                  Confirmed
-                </Badge>
-              )}
-              {currentStatus === "COMPLETED" && (
-                <Badge variant="secondary" className="text-muted-foreground gap-1">
-                  <CheckCircle2 className="size-3" />
-                  Completed
-                </Badge>
-              )}
-              {currentStatus === "RESCHEDULE_REQUESTED" && (
-                <Badge variant="destructive" className="gap-1 font-medium">
-                  <ClockAlert className="size-3" />
-                  Reschedule Requested
                 </Badge>
               )}
             </div>
@@ -186,12 +172,6 @@ export function AppointmentDetailSheet({
               >
                 Session Timeline & Audit
               </TabsTrigger>
-              <TabsTrigger
-                value="reschedule"
-                className="relative h-11 rounded-none border-b-2 border-transparent px-1 font-medium data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none text-xs"
-              >
-                Reschedule / Action
-              </TabsTrigger>
             </TabsList>
           </Tabs>
         </div>
@@ -201,98 +181,96 @@ export function AppointmentDetailSheet({
           {activeTab === "overview" && (
             <div className="space-y-6">
               {/* Quick Status Transition Actions */}
-              <div className="rounded-xl border bg-muted/30 p-4 space-y-3">
-                <div className="text-xs font-semibold text-foreground uppercase tracking-wider flex items-center gap-1.5">
-                  <Activity className="size-3.5 text-primary" />
-                  Clinical Workflow Action
+              {currentStatus === "CONFIRMED" ? (
+                <div className="rounded-xl border border-blue-500/20 bg-blue-500/10 p-4 space-y-1 text-xs text-blue-700 dark:text-blue-300">
+                  <div className="font-semibold flex items-center gap-1.5">
+                    <CheckCircle2 className="size-4 text-blue-600" />
+                    Session Completed (Confirmed)
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    This clinical session has been completed and confirmed. All actions are locked.
+                  </p>
                 </div>
+              ) : currentStatus === "CANCELLED" ? (
+                <div className="rounded-xl border border-destructive/20 bg-destructive/10 p-4 space-y-1 text-xs text-destructive">
+                  <div className="font-semibold flex items-center gap-1.5">
+                    <XCircle className="size-4 text-destructive" />
+                    Cancelled by Patient
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    This appointment was cancelled by the patient via the portal. No actions permitted.
+                  </p>
+                </div>
+              ) : (
+                <div className="rounded-xl border bg-muted/30 p-4 space-y-3">
+                  <div className="text-xs font-semibold text-foreground uppercase tracking-wider flex items-center gap-1.5">
+                    <Activity className="size-3.5 text-primary" />
+                    Clinical Workflow Action
+                  </div>
 
-                <div className="flex flex-wrap items-center gap-2">
-                  {(currentStatus === "SCHEDULED" || currentStatus === "CONFIRMED") && (
-                    <Button
-                      size="sm"
-                      className="text-xs h-8.5 font-medium"
-                      onClick={() => handleUpdateStatus("CHECKED_IN", "Checked In")}
-                    >
-                      <UserCheck className="size-3.5 mr-1.5" />
-                      Check In Patient
-                    </Button>
-                  )}
+                  <div className="flex flex-wrap items-center gap-2">
+                    {currentStatus !== "CHECKED_IN" && (
+                      <Button
+                        size="sm"
+                        className="text-xs h-8.5 font-medium cursor-pointer"
+                        onClick={() => handleUpdateStatus("CHECKED_IN", "Checked In")}
+                      >
+                        <UserCheck className="size-3.5 mr-1.5 text-emerald-600" />
+                        Check In Patient
+                      </Button>
+                    )}
 
-                  {currentStatus === "CHECKED_IN" && (
-                    <Button
-                      size="sm"
-                      className="text-xs h-8.5 font-medium bg-amber-600 hover:bg-amber-700 text-white"
-                      onClick={() => handleUpdateStatus("IN_TREATMENT", "In Treatment")}
-                    >
-                      <PlayCircle className="size-3.5 mr-1.5" />
-                      Commence Treatment (Beam On)
-                    </Button>
-                  )}
+                    {currentStatus !== "CONFIRMED" && (
+                      <Button
+                        size="sm"
+                        className="text-xs h-8.5 font-medium bg-blue-600 hover:bg-blue-700 text-white cursor-pointer"
+                        onClick={() => handleUpdateStatus("CONFIRMED", "Confirmed (Session Done)")}
+                      >
+                        <CheckCircle2 className="size-3.5 mr-1.5" />
+                        Mark Session Done (Confirm)
+                      </Button>
+                    )}
 
-                  {currentStatus === "IN_TREATMENT" && (
-                    <Button
-                      size="sm"
-                      className="text-xs h-8.5 font-medium bg-emerald-600 hover:bg-emerald-700 text-white"
-                      onClick={() => handleUpdateStatus("COMPLETED", "Completed")}
-                    >
-                      <CheckCircle2 className="size-3.5 mr-1.5" />
-                      Complete Treatment Session
-                    </Button>
-                  )}
+                    {currentStatus !== "NO_SHOW" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-xs h-8.5 font-medium text-amber-700 dark:text-amber-400 cursor-pointer"
+                        onClick={() => handleUpdateStatus("NO_SHOW", "No-Show")}
+                      >
+                        <UserX className="size-3.5 mr-1.5" />
+                        Mark as No-Show
+                      </Button>
+                    )}
 
-                  {currentStatus === "COMPLETED" && (
+                    {currentStatus !== "SCHEDULED" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-xs h-8.5 font-medium cursor-pointer"
+                        onClick={() => handleUpdateStatus("SCHEDULED", "Scheduled")}
+                      >
+                        <Clock className="size-3.5 mr-1.5 text-muted-foreground" />
+                        Mark Scheduled
+                      </Button>
+                    )}
+
                     <Button
                       size="sm"
                       variant="outline"
-                      className="text-xs h-8.5 font-medium"
+                      className="text-xs h-8.5 cursor-pointer"
                       onClick={() =>
-                        // [SMS notification commented out; using Email via Resend]
-                        toast.success("Result Notice Dispatched", {
-                          description: `Email notification queued for patient (Resend Ready).`,
+                        toast.success("Email Dispatched to Patient", {
+                          description: `Sent appointment update to ${appointment.patientName}.`,
                         })
                       }
                     >
                       <Send className="size-3.5 mr-1.5 text-primary" />
-                      Send Result Notice
+                      Send Email Notice
                     </Button>
-                  )}
-
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="text-xs h-8.5"
-                    onClick={() => setActiveTab("reschedule")}
-                  >
-                    <ClockAlert className="size-3.5 mr-1.5 text-amber-600" />
-                    Propose New Slot
-                  </Button>
-
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="text-xs h-8.5"
-                    onClick={() =>
-                      toast.info(`Dialing ${appointment.patientPhone}...`, {
-                        description: `Connecting clinician audio to ${appointment.patientName}`,
-                      })
-                    }
-                  >
-                    <Phone className="size-3.5 mr-1.5 text-blue-600" />
-                    Call Patient
-                  </Button>
-
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="text-xs h-8.5 text-destructive hover:text-destructive hover:bg-destructive/10 ml-auto"
-                    onClick={() => handleUpdateStatus("NO_SHOW", "No-Show")}
-                  >
-                    <XCircle className="size-3.5 mr-1" />
-                    Mark No-Show
-                  </Button>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Diagnosis & Care Protocol Card */}
               <div className="rounded-xl border p-4 space-y-3">
@@ -348,20 +326,20 @@ export function AppointmentDetailSheet({
 
                 <div className="rounded-xl border p-3.5 space-y-1">
                   <span className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider">
-                    Assigned Vault / Room
+                    Facility & Centre
                   </span>
                   <div className="text-sm font-semibold text-foreground flex items-center gap-1.5">
                     <Activity className="size-3.5 text-primary" />
-                    {appointment.room}
+                    {appointment.room || appointment.centreName}
                   </div>
                   <span className="text-[11px] text-muted-foreground">
-                    {appointment.centreName}
+                    {appointment.centreCode}
                   </span>
                 </div>
 
                 <div className="rounded-xl border p-3.5 space-y-1">
                   <span className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider">
-                    Prescribing Oncologist
+                    Attending Clinician
                   </span>
                   <div className="text-sm font-semibold text-foreground">
                     {appointment.oncologist}
@@ -430,71 +408,6 @@ export function AppointmentDetailSheet({
                 ))}
               </div>
             </div>
-          )}
-
-          {activeTab === "reschedule" && (
-            <form onSubmit={handleApplyReschedule} className="space-y-4">
-              <div className="space-y-1">
-                <div className="text-xs font-semibold text-foreground uppercase tracking-wider">
-                  Propose Reschedule Slot
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Select a coordinated machine slot for {appointment.patientName} at {appointment.centreCode}.
-                </p>
-              </div>
-
-              <div className="space-y-3 pt-2">
-                <div className="space-y-1.5">
-                  <Label htmlFor="reschedule-date" className="text-xs font-medium">New Date</Label>
-                  <Input
-                    id="reschedule-date"
-                    type="date"
-                    value={rescheduleDate}
-                    onChange={(e) => setRescheduleDate(e.target.value)}
-                    className="h-9 text-xs"
-                    required
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label htmlFor="reschedule-time" className="text-xs font-medium">New Time Slot</Label>
-                  <Input
-                    id="reschedule-time"
-                    type="time"
-                    value={rescheduleTime}
-                    onChange={(e) => setRescheduleTime(e.target.value)}
-                    className="h-9 text-xs"
-                    required
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label htmlFor="reschedule-reason" className="text-xs font-medium">Clinical Reason</Label>
-                  <Input
-                    id="reschedule-reason"
-                    placeholder="e.g. Machine maintenance, patient toxicities, clinician conflict"
-                    value={rescheduleReason}
-                    onChange={(e) => setRescheduleReason(e.target.value)}
-                    className="h-9 text-xs"
-                  />
-                </div>
-              </div>
-
-              <div className="pt-4 border-t flex items-center justify-end gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  type="button"
-                  onClick={() => setActiveTab("overview")}
-                  className="h-8.5 text-xs"
-                >
-                  Cancel
-                </Button>
-                <Button size="sm" type="submit" className="h-8.5 text-xs">
-                  Apply & Notify Patient
-                </Button>
-              </div>
-            </form>
           )}
         </div>
       </SheetContent>

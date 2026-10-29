@@ -381,13 +381,15 @@ export function PatientVisitCalendar({
               </div>
             </div>
 
-            <div className="rounded-lg border bg-background p-3 flex items-center gap-3">
-              <MapPin className="size-4 text-primary shrink-0" />
-              <div>
-                <span className="text-[11px] text-muted-foreground block font-medium">Clinical Vault / Room</span>
-                <span className="text-xs font-bold text-foreground">{selectedVisit.room}</span>
+            {selectedVisit.room ? (
+              <div className="rounded-lg border bg-background p-3 flex items-center gap-3">
+                <MapPin className="size-4 text-primary shrink-0" />
+                <div>
+                  <span className="text-[11px] text-muted-foreground block font-medium">Facility / Room</span>
+                  <span className="text-xs font-bold text-foreground">{selectedVisit.room}</span>
+                </div>
               </div>
-            </div>
+            ) : null}
           </div>
 
           {selectedVisit.notes && (

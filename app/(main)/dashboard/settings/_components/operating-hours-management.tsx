@@ -83,7 +83,7 @@ export function OperatingHoursManagement() {
               <SelectItem value="ALL">All Centres (Global)</SelectItem>
               <SelectItem value="MLCC">MLCC (Lagos)</SelectItem>
               <SelectItem value="MKDC">MKDC (Kano)</SelectItem>
-              <SelectItem value="MUDC">MUDC (Abuja)</SelectItem>
+              <SelectItem value="MUDC">MUDC (Umuahia)</SelectItem>
             </SelectContent>
           </Select>
 
@@ -100,7 +100,7 @@ export function OperatingHoursManagement() {
             Weekly Schedule Matrix
           </CardTitle>
           <CardDescription className="text-xs">
-            Standard Linac slots are scheduled in 15-minute intervals. Weekends default to emergency on-call protocols.
+            Standard appointment slots are scheduled in 15-minute intervals. Weekends default to emergency on-call protocols.
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
@@ -111,8 +111,8 @@ export function OperatingHoursManagement() {
                 <TableHead className="w-[130px] font-semibold text-xs">Status</TableHead>
                 <TableHead className="font-semibold text-xs">Doors Open</TableHead>
                 <TableHead className="font-semibold text-xs">Doors Close</TableHead>
-                <TableHead className="font-semibold text-xs">First Treatment Slot</TableHead>
-                <TableHead className="font-semibold text-xs">Last Treatment Slot</TableHead>
+                <TableHead className="font-semibold text-xs">First Slot</TableHead>
+                <TableHead className="font-semibold text-xs">Last Slot</TableHead>
                 <TableHead className="w-[140px] font-semibold text-xs">Slot Duration</TableHead>
               </TableRow>
             </TableHeader>

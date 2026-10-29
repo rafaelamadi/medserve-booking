@@ -74,7 +74,7 @@ function ManageAppointmentsContent() {
     date: schedule.nextVisitDate || "2026-10-27",
     timeSlot: schedule.nextVisitTime || "08:30 AM",
     service: schedule.primaryService || patient.primaryService || "Radiotherapy Session",
-    room: schedule.room || "Linac Vault 1",
+    room: schedule.room || "",
   };
 
   // Merge past encounters + future chemotherapy visits + extra user bookings into 1 cohesive schedule
@@ -547,7 +547,7 @@ function ManageAppointmentsContent() {
             date: bkg.date,
             timeSlot: bkg.timeSlot,
             serviceName: bkg.serviceName,
-            room: "Consulting Room",
+            room: "",
             status: "SCHEDULED",
             notes: bkg.notes || `Self-booked appointment (${bkg.reference})`,
           };

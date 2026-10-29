@@ -271,7 +271,7 @@ export function HubLoginForm() {
                       id="hub-signup-name"
                       type="text"
                       size="lg"
-                      placeholder="e.g. Dr. Ngozi Adeleke"
+                      placeholder="e.g. Dr. Kachi"
                       autoComplete="name"
                       aria-invalid={fieldState.invalid}
                       className="pr-10"

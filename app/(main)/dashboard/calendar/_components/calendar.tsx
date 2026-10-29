@@ -9,7 +9,6 @@ import multiMonthPlugin from "@fullcalendar/react/multimonth";
 import timeGridPlugin from "@fullcalendar/react/timegrid";
 import { differenceInCalendarDays, endOfMonth, format, startOfMonth } from "date-fns";
 import {
-  Building2,
   Calendar as CalendarIcon,
   ChevronLeft,
   ChevronRight,
@@ -39,8 +38,52 @@ import {
 } from "@/data/centre-calendar-data";
 import { NewAppointmentDialog } from "../../appointments/_components/new-appointment-dialog";
 import type { ClinicalAppointment } from "@/data/clinical-queue-data";
+import {
+  getLiveAppointmentsByCentre,
+  updateAppointmentStatusServer,
+  type ClinicalAppointmentRow,
+} from "@/server/appointments";
 
 import { AppointmentInspectorDialog } from "./appointment-inspector-dialog";
+import { useCentreScope } from "@/shared/context/centre-scope-context";
+
+function mapRowToCalendarEvent(row: ClinicalAppointmentRow): CentreCalendarEvent {
+  const startDate = new Date(row.scheduledTime);
+  // Standard clinical intake slot window (30 minutes)
+  const endDate = new Date(startDate.getTime() + 30 * 60 * 1000);
+
+  let roomCategory: RoomCategory = "ONCOLOGY";
+  const mod = (row.modality || "").toUpperCase();
+  const serv = (row.serviceName || "").toLowerCase();
+  if (serv.includes("consult") || serv.includes("cancer care")) {
+    roomCategory = "CONSULTING";
+  } else if (mod.includes("DIAGNOSTIC") || serv.includes("mri") || serv.includes("ct") || serv.includes("ultrasound")) {
+    roomCategory = "DIAGNOSTIC";
+  } else {
+    roomCategory = "ONCOLOGY";
+  }
+
+  return {
+    id: row.id,
+    title: `${row.patientName} — ${row.serviceName}`,
+    start: startDate,
+    end: endDate,
+    extendedProps: {
+      patientName: row.patientName,
+      mrn: row.patientMrn,
+      patientId: row.id,
+      phone: row.patientPhone,
+      service: row.serviceName,
+      room: row.room || (roomCategory === "ONCOLOGY" ? "Linear Accelerator Suite 1" : "Diagnostics Room 2"),
+      roomCategory,
+      centreCode: row.centreCode as "MLCC" | "MKDC" | "MUDC",
+      centreName: row.centreName,
+      doctor: row.oncologist || "Dr. Kachi",
+      status: (row.status as any) || "SCHEDULED",
+      notes: row.triageNotes || row.protocol || "Clinical appointment recorded in Supabase.",
+    },
+  };
+}
 
 const views = [
   { key: "timeGridWeek", label: "Week View" },
@@ -53,21 +96,58 @@ const plugins = [dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin, m
 
 export function Calendar() {
   const controller = useCalendarController();
-  const [events, setEvents] = React.useState<CentreCalendarEvent[]>(CENTRE_CALENDAR_EVENTS);
+  const { selectedCentre } = useCentreScope();
+  const [events, setEvents] = React.useState<CentreCalendarEvent[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
 
-  // Filters
-  const [centreFilter, setCentreFilter] = React.useState<string>("all");
+  const isAll = !selectedCentre || selectedCentre.id === "all" || selectedCentre.code === "ALL";
+  const activeCentreCode = !isAll && selectedCentre?.code ? selectedCentre.code : "all";
+
+  // Category filter
   const [roomFilter, setRoomFilter] = React.useState<RoomCategory>("ALL");
 
   // Selected event for inspector dialog
   const [selectedEvent, setSelectedEvent] = React.useState<CentreCalendarEvent | null>(null);
   const [inspectorOpen, setInspectorOpen] = React.useState(false);
 
+  // Fetch live appointments from Supabase
+  const refreshCalendar = React.useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const live = await getLiveAppointmentsByCentre(isAll ? undefined : selectedCentre?.code);
+      const liveEvents = live.map(mapRowToCalendarEvent);
+      const holidayEvents = CENTRE_CALENDAR_EVENTS.filter((e) => e.extendedProps.mrn === "HOLIDAY");
+      setEvents([...liveEvents, ...holidayEvents]);
+    } catch (err) {
+      console.error("Failed to load live appointments for calendar from Supabase:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [isAll, selectedCentre?.code]);
+
+  React.useEffect(() => {
+    refreshCalendar();
+  }, [refreshCalendar]);
+
+  // Real-time synchronization
+  React.useEffect(() => {
+    const handleSync = () => {
+      refreshCalendar();
+    };
+
+    window.addEventListener("medserve:appointment-sync", handleSync);
+    window.addEventListener("storage", handleSync);
+    return () => {
+      window.removeEventListener("medserve:appointment-sync", handleSync);
+      window.removeEventListener("storage", handleSync);
+    };
+  }, [refreshCalendar]);
+
   // Filter events
   const filteredEvents = React.useMemo(() => {
     return events.filter((ev) => {
       // Centre check
-      if (centreFilter !== "all" && ev.extendedProps.centreCode !== centreFilter) {
+      if (activeCentreCode !== "all" && ev.extendedProps.centreCode !== activeCentreCode) {
         if (ev.extendedProps.mrn !== "HOLIDAY") return false;
       }
       // Room check
@@ -76,11 +156,11 @@ export function Calendar() {
       }
       return true;
     });
-  }, [events, centreFilter, roomFilter]);
+  }, [events, activeCentreCode, roomFilter]);
 
   const [dateInfo, setDateInfo] = React.useState(() => {
     // Snap to late October 2026 where appointments are scheduled
-    const targetDate = new Date(2026, 9, 27);
+    const targetDate = new Date(2026, 9, 29);
     return {
       title: format(targetDate, "MMMM yyyy"),
       days: differenceInCalendarDays(endOfMonth(targetDate), startOfMonth(targetDate)) + 1,
@@ -96,7 +176,7 @@ export function Calendar() {
     }
   };
 
-  const handleStatusChange = (eventId: string, newStatus: string) => {
+  const handleStatusChange = async (eventId: string, newStatus: string) => {
     setEvents((prev) =>
       prev.map((e) =>
         e.id === eventId
@@ -110,44 +190,18 @@ export function Calendar() {
           : e,
       ),
     );
+
+    try {
+      await updateAppointmentStatusServer(eventId, newStatus as any);
+      window.dispatchEvent(new Event("medserve:appointment-sync"));
+    } catch (err) {
+      console.error("Failed to update status in Supabase:", err);
+    }
   };
 
-  const handleAppointmentCreated = (newApt: ClinicalAppointment) => {
-    const [h, m] = (newApt.timeSlot || "09:00 AM").split(/[:\s]/);
-    let hour = parseInt(h, 10);
-    const isPM = (newApt.timeSlot || "").toUpperCase().includes("PM");
-    if (isPM && hour < 12) hour += 12;
-    if (!isPM && hour === 12) hour = 0;
-    const minute = parseInt(m, 10) || 0;
-
-    const startDate = new Date(2026, 9, 27, hour, minute);
-    const endDate = new Date(2026, 9, 27, hour, minute + 30);
-
-    const newCalendarEvent: CentreCalendarEvent = {
-      id: `cal-${Date.now()}`,
-      title: `${newApt.patientName} — ${newApt.serviceName}`,
-      start: startDate,
-      end: endDate,
-      backgroundColor: "rgba(16, 185, 129, 0.15)",
-      borderColor: "#10b981",
-      textColor: "#047857",
-      extendedProps: {
-        patientName: newApt.patientName,
-        mrn: newApt.patientMrn,
-        patientId: "pat-new",
-        phone: newApt.patientPhone,
-        service: newApt.serviceName,
-        room: newApt.room || "Linac Vault 1",
-        roomCategory: "LINAC_1",
-        centreCode: newApt.centreCode as any,
-        centreName: newApt.centreName,
-        doctor: newApt.oncologist || "Dr. Kachi",
-        status: "SCHEDULED",
-        notes: newApt.triageNotes || "Clinical appointment booked via staff portal.",
-      },
-    };
-
-    setEvents((prev) => [newCalendarEvent, ...prev]);
+  const handleAppointmentCreated = () => {
+    refreshCalendar();
+    window.dispatchEvent(new Event("medserve:appointment-sync"));
   };
 
   return (
@@ -159,26 +213,12 @@ export function Calendar() {
             {dateInfo.title}
           </div>
           <p className="text-muted-foreground text-xs">
-            Showing {filteredEvents.length} scheduled clinical slots across facilities
+            Showing {filteredEvents.length} scheduled clinical slots {isAll ? "across facilities" : `at ${selectedCentre?.name || "selected centre"}`}
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {/* Centre Selector */}
-          <Select value={centreFilter} onValueChange={setCentreFilter}>
-            <SelectTrigger className="w-[150px] h-9 text-xs">
-              <Building2 className="size-3.5 mr-1.5 text-muted-foreground" />
-              <SelectValue placeholder="All Centres" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Centres</SelectItem>
-              <SelectItem value="MLCC">MLCC (Lagos)</SelectItem>
-              <SelectItem value="MKDC">MKDC (Kano)</SelectItem>
-              <SelectItem value="MUDC">MUDC (Abuja)</SelectItem>
-            </SelectContent>
-          </Select>
-
-          {/* Room / Vault Selector */}
+          {/* Appointment Category Filter */}
           <Select value={roomFilter} onValueChange={(val: RoomCategory) => setRoomFilter(val)}>
             <SelectTrigger className="w-[200px] h-9 text-xs">
               <Stethoscope className="size-3.5 mr-1.5 text-muted-foreground" />
@@ -237,13 +277,19 @@ export function Calendar() {
         <EventCalendarViews
           controller={controller}
           initialView={views[0].key}
-          initialDate={new Date(2026, 9, 27)}
+          initialDate={new Date(2026, 9, 29)}
           plugins={[...plugins]}
           popoverCloseContent={() => (
             <XIcon className="text-muted-foreground group-hover:text-foreground size-4" />
           )}
           events={filteredEvents}
           eventClick={handleEventClick}
+          displayEventEnd={false}
+          eventTimeFormat={{
+            hour: "numeric",
+            minute: "2-digit",
+            meridiem: "short",
+          }}
           slotMinTime="07:00:00"
           slotMaxTime="18:30:00"
           businessHours={{

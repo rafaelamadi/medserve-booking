@@ -1,27 +1,68 @@
 "use client";
 
-import { useState } from "react";
-import { Activity, AlertTriangle, CalendarCheck, CheckCircle2, Clock, PlayCircle, Plus, Repeat } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import {
+  CalendarCheck,
+  CheckCircle2,
+  Clock,
+  UserCheck,
+} from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { type ClinicalAppointment, TODAY_APPOINTMENTS } from "@/data/clinical-queue-data";
+import { Card } from "@/components/ui/card";
+import { useCentreScope } from "@/shared/context/centre-scope-context";
+import { getLiveAppointmentsByCentre, type ClinicalAppointmentRow } from "@/server/appointments";
 
 import { AppointmentsTable } from "./_components/appointments-table";
 import { NewAppointmentDialog } from "./_components/new-appointment-dialog";
 
 export default function AppointmentsPage() {
-  const [appointments, setAppointments] = useState<ClinicalAppointment[]>(TODAY_APPOINTMENTS);
+  const { selectedCentre } = useCentreScope();
+  const [appointments, setAppointments] = useState<ClinicalAppointmentRow[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const total = appointments.length;
-  const checkedIn = appointments.filter((a) => a.status === "CHECKED_IN").length;
-  const inTreatment = appointments.filter((a) => a.status === "IN_TREATMENT").length;
-  const rescheduleReq = appointments.filter((a) => a.status === "RESCHEDULE_REQUESTED").length;
-  const completed = appointments.filter((a) => a.status === "COMPLETED").length;
+  const isAll = !selectedCentre || selectedCentre.id === "all" || selectedCentre.code === "ALL";
 
-  const handleCreated = (newApt: ClinicalAppointment) => {
-    setAppointments((prev) => [newApt, ...prev]);
+  const refreshAppointments = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const live = await getLiveAppointmentsByCentre(isAll ? undefined : selectedCentre?.code);
+      setAppointments(live);
+    } catch (err) {
+      console.error("Failed to load live appointments from Supabase:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [isAll, selectedCentre?.code]);
+
+  useEffect(() => {
+    refreshAppointments();
+  }, [refreshAppointments]);
+
+  // Real-time synchronization: listen for events when actions occur
+  useEffect(() => {
+    const handleSync = () => {
+      refreshAppointments();
+    };
+
+    window.addEventListener("medserve:appointment-sync", handleSync);
+    window.addEventListener("storage", handleSync);
+    return () => {
+      window.removeEventListener("medserve:appointment-sync", handleSync);
+      window.removeEventListener("storage", handleSync);
+    };
+  }, [refreshAppointments]);
+
+  const displayedAppointments = appointments;
+
+  const total = displayedAppointments.length;
+  const checkedIn = displayedAppointments.filter((a) => a.status === "CHECKED_IN").length;
+  const confirmed = displayedAppointments.filter((a) => a.status === "CONFIRMED").length;
+  const scheduled = displayedAppointments.filter(
+    (a) => a.status === "SCHEDULED" || a.status === "REQUESTED"
+  ).length;
+
+  const handleCreated = () => {
+    refreshAppointments();
   };
 
   return (
@@ -33,7 +74,9 @@ export default function AppointmentsPage() {
             Clinical Appointments Queue
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Coordinate daily treatment sessions, patient check-ins, and vault capacity across MLCC, MKDC & MUDC
+            {isAll
+              ? "Coordinate daily clinical appointments, patient check-ins, and schedule capacity across Lagos (MLCC), Kano (MKDC), and Umuahia (MUDC)."
+              : `Coordinate daily clinical appointments, patient check-ins, and schedule capacity for ${selectedCentre.name} (${selectedCentre.city}).`}
           </p>
         </div>
 
@@ -53,7 +96,20 @@ export default function AppointmentsPage() {
           </div>
           <div className="mt-2 flex items-baseline gap-2">
             <span className="text-2xl font-bold tracking-tight tabular-nums">{total}</span>
-            <span className="text-xs text-muted-foreground">visits scheduled</span>
+            <span className="text-xs text-muted-foreground">visits total</span>
+          </div>
+        </Card>
+
+        <Card className="p-4 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
+              Scheduled
+            </span>
+            <Clock className="size-4 text-muted-foreground" />
+          </div>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="text-2xl font-bold tracking-tight tabular-nums">{scheduled}</span>
+            <span className="text-xs text-muted-foreground">upcoming arrival</span>
           </div>
         </Card>
 
@@ -62,7 +118,7 @@ export default function AppointmentsPage() {
             <span className="text-xs text-emerald-700 dark:text-emerald-400 font-medium uppercase tracking-wider">
               Checked In
             </span>
-            <CheckCircle2 className="size-4 text-emerald-600" />
+            <UserCheck className="size-4 text-emerald-600" />
           </div>
           <div className="mt-2 flex items-baseline gap-2">
             <span className="text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400 tabular-nums">
@@ -72,41 +128,26 @@ export default function AppointmentsPage() {
           </div>
         </Card>
 
-        <Card className="p-4 shadow-xs border-amber-500/20 bg-amber-500/[0.02]">
+        <Card className="p-4 shadow-xs border-blue-500/20 bg-blue-500/[0.02]">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-amber-700 dark:text-amber-400 font-medium uppercase tracking-wider">
-              In Treatment
+            <span className="text-xs text-blue-700 dark:text-blue-400 font-medium uppercase tracking-wider">
+              Confirmed
             </span>
-            <PlayCircle className="size-4 text-amber-600" />
+            <CheckCircle2 className="size-4 text-blue-600" />
           </div>
           <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-bold tracking-tight text-amber-600 dark:text-amber-400 tabular-nums">
-              {inTreatment}
+            <span className="text-2xl font-bold tracking-tight text-blue-600 dark:text-blue-400 tabular-nums">
+              {confirmed}
             </span>
-            <span className="text-xs text-muted-foreground">active beam/infusion</span>
-          </div>
-        </Card>
-
-        <Card className="p-4 shadow-xs border-destructive/20 bg-destructive/[0.02]">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-destructive font-medium uppercase tracking-wider">
-              Reschedules
-            </span>
-            <AlertTriangle className="size-4 text-destructive" />
-          </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-bold tracking-tight text-destructive tabular-nums">
-              {rescheduleReq}
-            </span>
-            <span className="text-xs text-muted-foreground">awaiting decision</span>
+            <span className="text-xs text-muted-foreground">session completed</span>
           </div>
         </Card>
       </div>
 
       {/* Main Filterable Clinical Appointments Table */}
-      <Card className="p-5 shadow-xs">
-        <AppointmentsTable data={appointments} onDataChange={setAppointments} />
-      </Card>
+      <div className="w-full">
+        <AppointmentsTable data={displayedAppointments} showExport />
+      </div>
     </div>
   );
 }

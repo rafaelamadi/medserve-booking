@@ -136,7 +136,7 @@ export function HolidaysManagement() {
                   id="h-title"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="e.g. Linac Bi-Annual QA Blackout"
+                  placeholder="e.g. Facility Maintenance Blackout"
                   required
                 />
               </div>
@@ -185,7 +185,7 @@ export function HolidaysManagement() {
                       <SelectItem value="ALL">All Centres</SelectItem>
                       <SelectItem value="MLCC">MLCC (Lagos)</SelectItem>
                       <SelectItem value="MKDC">MKDC (Kano)</SelectItem>
-                      <SelectItem value="MUDC">MUDC (Abuja)</SelectItem>
+                      <SelectItem value="MUDC">MUDC (Umuahia)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
