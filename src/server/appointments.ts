@@ -63,6 +63,7 @@ export async function getLiveAppointmentsByCentre(
       include: {
         patient: true,
         centre: true,
+        resource: true,
         centreService: {
           include: {
             service: true,
@@ -85,12 +86,8 @@ export async function getLiveAppointmentsByCentre(
       // Pure clean service name from Supabase service table (e.g. "Chemotherapy", "Radiotherapy")
       const serviceName = apt.centreService?.service?.name || "Consultation";
 
-      // Standardized Pure MRN format MS-10XXXX
-      const numericSeed = Math.abs(
-        apt.patient.phone?.split("").reduce((acc, c) => acc * 31 + c.charCodeAt(0), 0) || 100000
-      );
-      const mrnSuffix = 100000 + (numericSeed % 900000);
-      const patientMrn = `MS-${mrnSuffix}`;
+      // Real MRN stored directly in Supabase Patient table (no hashing or synthetic overrides)
+      const patientMrn = apt.patient.mrn || "MS-PENDING";
 
       // Map status: REQUESTED in database corresponds to SCHEDULED in clinical queue UI
       let uiStatus = apt.status as string;
@@ -123,11 +120,11 @@ export async function getLiveAppointmentsByCentre(
         endsTime: apt.endsAt.toISOString(),
         timeSlot,
         durationMinutes,
-        room: apt.resourceId || "",
+        room: apt.resource?.name || apt.centre?.name || "Consultation Suite",
         status: uiStatus,
-        oncologist: "Dr. Kachi",
-        diagnosis: apt.centreService?.service?.name ? `${apt.centreService.service.name} Protocol` : "Clinical Care Plan",
-        protocol: apt.patientNote || "Prescribed clinical pathway by radiation oncologist.",
+        oncologist: apt.patient.doctorInCharge || "Attending Oncologist",
+        diagnosis: apt.patient.primaryDiagnosis || (apt.centreService?.service?.name ? `${apt.centreService.service.name} Protocol` : "Clinical Care Plan"),
+        protocol: apt.patientNote || "Prescribed clinical pathway.",
         triageNotes: apt.patientNote || undefined,
         dateCategory: isToday ? "today" : "this_week",
         timeline: [
@@ -298,7 +295,7 @@ export async function createStaffAppointmentServer(
           centreName: centre.name,
           primaryService: cs.service.name,
           primaryDiagnosis: input.notes || "Clinical Appointment",
-          doctorInCharge: "Dr. Kachi",
+          doctorInCharge: "Attending Oncologist",
           status: "ACTIVE",
         },
       });

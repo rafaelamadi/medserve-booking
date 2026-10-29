@@ -421,12 +421,8 @@ export async function getLivePatientById(idOrMrn: string): Promise<RegisteredPat
         // fallback handled below
       }
     }
-    const finalDoctor = doctorInCharge || "Dr. Kachi";
-
-    const numericSeed = Math.abs(
-      p.phone?.split("").reduce((acc, c) => acc * 31 + c.charCodeAt(0), 0) || 100000
-    );
-    const mrn = p.mrn || `MS-${100000 + (numericSeed % 900000)}`;
+    const finalDoctor = doctorInCharge || "Attending Oncologist";
+    const mrn = p.mrn || "MS-PENDING";
 
     const visits: PatientVisitHistory[] = p.appointments.map((apt) => ({
       id: apt.id,
