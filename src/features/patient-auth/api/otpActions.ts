@@ -6,6 +6,7 @@ import { prisma } from "@/shared/api/prisma";
 import { sendOtpEmail } from "@/shared/lib/email";
 import { setPatientSession } from "@/shared/lib/patientCookie";
 import { generateOtpCode, hashOtpCode } from "@/features/verify-phone-otp/lib/otpCrypto";
+import { generateUniqueMrn } from "@/server/patients";
 
 const emailSchema = z.string().email("Please enter a valid email address.");
 
@@ -164,10 +165,21 @@ export async function verifyPatientEmailOtp(params: {
     });
 
     if (!patient) {
+      const mrn = await generateUniqueMrn();
       patient = await prisma.patient.create({
         data: {
           email,
           fullName: params.fullName?.trim() || "Patient",
+          mrn,
+        },
+      });
+    } else if (!patient.mrn) {
+      const mrn = await generateUniqueMrn();
+      patient = await prisma.patient.update({
+        where: { id: patient.id },
+        data: {
+          mrn,
+          fullName: params.fullName && !patient.fullName ? params.fullName.trim() : undefined,
         },
       });
     } else if (params.fullName && !patient.fullName) {

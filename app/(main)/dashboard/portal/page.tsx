@@ -1,1 +1,36 @@
-export { default } from "@/pages/portal-home";
+import { redirect } from "next/navigation";
+import { getPatientSession } from "@/shared/lib/patientCookie";
+import { auth } from "@/shared/lib/auth";
+import { prisma } from "@/shared/api/prisma";
+import { getLivePatientById } from "@/server/patients";
+import { PortalHomePage } from "@/pages/portal-home";
+
+export default async function PortalPage() {
+  const cookieSession = await getPatientSession();
+  const nextAuthSession = await auth();
+
+  const userEmail = cookieSession?.email || nextAuthSession?.user?.email;
+
+  if (userEmail) {
+    const patient = await prisma.patient.findUnique({
+      where: { email: userEmail.toLowerCase() },
+      select: { id: true, fullName: true, email: true, phone: true, mrn: true },
+    });
+
+    // If patient signed up via Google or Email but has not completed their clinical profile (missing phone)
+    if (patient && (!patient.phone || patient.phone.trim() === "" || patient.phone === "+234" || patient.phone === "+234 ")) {
+      redirect(
+        `/hub/login?tab=patient&step=intake&email=${encodeURIComponent(patient.email || userEmail)}&name=${encodeURIComponent(patient.fullName || "")}`
+      );
+    }
+
+    if (patient) {
+      const fullPatient = await getLivePatientById(patient.id);
+      if (fullPatient) {
+        return <PortalHomePage initialPatient={fullPatient} />;
+      }
+    }
+  }
+
+  return <PortalHomePage />;
+}

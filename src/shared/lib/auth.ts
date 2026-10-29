@@ -7,6 +7,7 @@ import type { StaffRole } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import Google from "next-auth/providers/google";
 import { setPatientSession } from "./patientCookie";
+import { generateUniqueMrn } from "@/server/patients";
 
 declare module "next-auth" {
   interface Session {
@@ -99,11 +100,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             where: { email },
           });
           if (!patient) {
+            const mrn = await generateUniqueMrn();
             patient = await prisma.patient.create({
               data: {
                 email,
                 fullName: user.name || "Patient",
+                mrn,
               },
+            });
+          } else if (!patient.mrn) {
+            const mrn = await generateUniqueMrn();
+            patient = await prisma.patient.update({
+              where: { id: patient.id },
+              data: { mrn },
             });
           }
           await setPatientSession({
@@ -123,6 +132,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     jwt: async ({ token, user }) => {
       if (user) {
         token.staffId = user.id;
+        token.name = user.name;
+        token.email = user.email;
         token.role = (user as { role?: StaffRole }).role;
         token.centreIds = (user as { centreIds?: string[] }).centreIds ?? [];
       }
@@ -131,6 +142,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     session: async ({ session, token }) => {
       if (session.user) {
         session.user.id = (token.staffId as string) ?? token.sub ?? "";
+        if (token.name) session.user.name = token.name;
+        if (token.email) session.user.email = token.email;
         session.user.role = (token.role as StaffRole) ?? "VIEWER";
         session.user.centreIds = (token.centreIds as string[]) ?? [];
       }

@@ -2,9 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
+import { usePathname } from "next/navigation";
+import { usePatientPortalStore } from "@/entities/patient";
 
 export function DynamicGreeting() {
+  const pathname = usePathname();
+  const isPatientPortal = Boolean(pathname?.startsWith("/dashboard/portal") || pathname?.startsWith("/portal"));
   const { data: session, status } = useSession();
+  const { patient } = usePatientPortalStore();
   const [greeting, setGreeting] = useState("Good morning");
   const [mounted, setMounted] = useState(false);
 
@@ -36,7 +41,11 @@ export function DynamicGreeting() {
     );
   }
 
-  const userName = session?.user?.name || "Staff Member";
+  const userName = isPatientPortal
+    ? (patient?.fullName && patient.fullName !== "Chidinma Nwosu"
+        ? patient.fullName
+        : session?.user?.name || patient?.fullName || "Patient")
+    : (session?.user?.name || "Staff Member");
 
   return (
     <div className="flex items-center gap-1.5 text-xs sm:text-sm tracking-tight select-none">

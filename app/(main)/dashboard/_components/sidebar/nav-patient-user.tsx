@@ -1,6 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { signOut } from "next-auth/react";
+import { logoutPatient } from "@/shared/lib/patientCookie";
 import { Check, EllipsisVertical, HeartPulse, LogOut, Shield } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -23,8 +25,14 @@ export function NavPatientUser() {
   const { isMobile } = useSidebar();
   const { patient, setPatient } = usePatientPortalStore();
 
-  const handleSignOut = () => {
-    router.push("/hub/login");
+  const handleSignOut = async () => {
+    try {
+      await logoutPatient();
+    } catch {}
+    try {
+      localStorage.removeItem("medserve_active_patient_id");
+    } catch {}
+    await signOut({ callbackUrl: "/hub/login?tab=patient" });
   };
 
   return (

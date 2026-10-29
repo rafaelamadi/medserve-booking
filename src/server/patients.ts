@@ -602,6 +602,27 @@ export interface CompletePatientOnboardingInput {
 }
 
 /**
+/**
+ * Generates a unique, non-colliding Medical Record Number (MRN)
+ * formatted as MS-XXXXXX verified against existing records in Supabase.
+ */
+export async function generateUniqueMrn(): Promise<string> {
+  for (let i = 0; i < 20; i++) {
+    const randomDigits = Math.floor(100000 + Math.random() * 900000);
+    const candidate = `MS-${randomDigits}`;
+    const existing = await prisma.patient.findUnique({
+      where: { mrn: candidate },
+      select: { id: true },
+    });
+    if (!existing) {
+      return candidate;
+    }
+  }
+  // Safe collision fallback using the last 6 digits of current timestamp
+  return `MS-${Date.now().toString().slice(-6)}`;
+}
+
+/**
  * Completes patient intake onboarding directly in Supabase.
  * Updates or creates the patient record with clinical demographics, assigns an MRN,
  * updates the authenticated session cookie, and returns the registered patient entity.
@@ -624,11 +645,11 @@ export async function completePatientOnboardingServer(
       return { success: false, error: "Phone number is required." };
     }
 
-    const mrn = `MS-${Math.floor(100000 + Math.random() * 900000)}`;
-
     const existing = await prisma.patient.findUnique({
       where: { email: trimmedEmail },
     });
+
+    const assignedMrn = existing?.mrn || (await generateUniqueMrn());
 
     const dbPatient = existing
       ? await prisma.patient.update({
@@ -636,7 +657,7 @@ export async function completePatientOnboardingServer(
           data: {
             fullName: trimmedName,
             phone: trimmedPhone,
-            mrn: existing.mrn || mrn,
+            mrn: assignedMrn,
             gender: input.gender || null,
             age: input.age ?? null,
             state: input.state || null,
@@ -666,7 +687,7 @@ export async function completePatientOnboardingServer(
             email: trimmedEmail,
             fullName: trimmedName,
             phone: trimmedPhone,
-            mrn,
+            mrn: assignedMrn,
             gender: input.gender || null,
             age: input.age ?? null,
             state: input.state || null,
@@ -704,11 +725,9 @@ export async function completePatientOnboardingServer(
       // In non-standard or test runner environments
     }
 
-    const assignedMrn = dbPatient.mrn || mrn;
-
     const registeredPatient: RegisteredPatient = {
       id: dbPatient.id,
-      mrn: assignedMrn,
+      mrn: dbPatient.mrn || assignedMrn,
       fullName: dbPatient.fullName,
       gender: dbPatient.gender || undefined,
       age: dbPatient.age ?? undefined,

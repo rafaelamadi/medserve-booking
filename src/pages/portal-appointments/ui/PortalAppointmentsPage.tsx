@@ -33,17 +33,25 @@ import {
   type PatientCareSchedule,
   type PatientVisit,
 } from "@/entities/care-series";
-import { usePatientPortalStore } from "@/entities/patient";
+import { usePatientPortalStore, type RegisteredPatient } from "@/entities/patient";
 import { TreatmentCalendar } from "@/widgets/treatment-calendar";
 import { PatientBookingDialog } from "@/features/book-appointment";
 import type { PublicBookingRecord } from "@/entities/appointment";
 
-function ManageAppointmentsContent() {
-  const { patient, customVisits } = usePatientPortalStore();
+function ManageAppointmentsContent({ initialPatient }: { initialPatient?: RegisteredPatient }) {
+  const { patient, customVisits, setPatient } = usePatientPortalStore();
   const [viewMode, setViewMode] = React.useState<"LEDGER" | "CALENDAR">("LEDGER");
   const [filter, setFilter] = React.useState<"ALL" | "UPCOMING" | "COMPLETED">("ALL");
   const [slipOpen, setSlipOpen] = React.useState(false);
   const [selectedVisitForSlip, setSelectedVisitForSlip] = React.useState<PatientVisit | null>(null);
+
+  React.useEffect(() => {
+    if (initialPatient && (!patient || patient.id !== initialPatient.id || patient.fullName === "Chidinma Nwosu")) {
+      setPatient(initialPatient);
+    }
+  }, [initialPatient, patient, setPatient]);
+
+  const activePatient = initialPatient || patient;
 
   // Booking dialog state
   const [bookingOpen, setBookingOpen] = React.useState(false);
@@ -59,15 +67,15 @@ function ManageAppointmentsContent() {
     return (
       PATIENT_SCHEDULES.find(
         (s) =>
-          s.patientId === patient.id ||
-          s.patientMrn === patient.mrn ||
-          s.reference === patient.scheduleRef,
+          s.patientId === activePatient.id ||
+          s.patientMrn === activePatient.mrn ||
+          s.reference === activePatient.scheduleRef,
       ) || PATIENT_SCHEDULES[0]
     );
-  }, [patient]);
+  }, [activePatient]);
 
-  const totalSessions = patient.totalVisits || schedule.totalVisits || 25;
-  const completedSessions = patient.completedVisits || schedule.completedVisits || 14;
+  const totalSessions = activePatient.totalVisits || schedule.totalVisits || 25;
+  const completedSessions = activePatient.completedVisits || schedule.completedVisits || 14;
   const percentComplete = Math.round((completedSessions / totalSessions) * 100);
 
   const nextVisit = patient.nextVisit || {
@@ -558,7 +566,7 @@ function ManageAppointmentsContent() {
   );
 }
 
-export function PortalAppointmentsPage() {
+export function PortalAppointmentsPage({ initialPatient }: { initialPatient?: RegisteredPatient }) {
   return (
     <React.Suspense
       fallback={
@@ -567,7 +575,7 @@ export function PortalAppointmentsPage() {
         </div>
       }
     >
-      <ManageAppointmentsContent />
+      <ManageAppointmentsContent initialPatient={initialPatient} />
     </React.Suspense>
   );
 }

@@ -26,26 +26,34 @@ import {
   type PatientCareSchedule,
   type PatientVisit,
 } from "@/entities/care-series";
-import { usePatientPortalStore } from "@/entities/patient";
+import { usePatientPortalStore, type RegisteredPatient } from "@/entities/patient";
 import { TreatmentCalendar } from "@/widgets/treatment-calendar";
 import { PatientBookingDialog } from "@/features/book-appointment";
 
-export function PatientHomeContent() {
-  const { patient, customVisits } = usePatientPortalStore();
+export function PatientHomeContent({ initialPatient }: { initialPatient?: RegisteredPatient }) {
+  const { patient, customVisits, setPatient } = usePatientPortalStore();
   const [bookingOpen, setBookingOpen] = React.useState(false);
   const [slipOpen, setSlipOpen] = React.useState(false);
   const [selectedVisitForSlip, setSelectedVisitForSlip] = React.useState<PatientVisit | null>(null);
+
+  React.useEffect(() => {
+    if (initialPatient && (!patient || patient.id !== initialPatient.id || patient.fullName === "Chidinma Nwosu")) {
+      setPatient(initialPatient);
+    }
+  }, [initialPatient, patient, setPatient]);
+
+  const activePatient = initialPatient || patient;
 
   const baseSchedule: PatientCareSchedule = React.useMemo(() => {
     return (
       PATIENT_SCHEDULES.find(
         (s) =>
-          s.patientId === patient.id ||
-          s.patientMrn === patient.mrn ||
-          s.reference === patient.scheduleRef,
+          s.patientId === activePatient.id ||
+          s.patientMrn === activePatient.mrn ||
+          s.reference === activePatient.scheduleRef,
       ) || PATIENT_SCHEDULES[0]
     );
-  }, [patient]);
+  }, [activePatient]);
 
   const schedule: PatientCareSchedule = React.useMemo(() => {
     if (!customVisits || customVisits.length === 0) return baseSchedule;
@@ -57,12 +65,12 @@ export function PatientHomeContent() {
     };
   }, [baseSchedule, customVisits]);
 
-  const totalSessions = patient.totalVisits || schedule.totalVisits || 25;
+  const totalSessions = activePatient.totalVisits || schedule.totalVisits || 25;
 
-  const nextVisit = patient.nextVisit || {
+  const nextVisit = activePatient.nextVisit || {
     date: schedule.nextVisitDate || "2026-10-27",
     timeSlot: schedule.nextVisitTime || "08:30 AM",
-    service: schedule.primaryService || patient.primaryService || "Radiotherapy Session",
+    service: schedule.primaryService || activePatient.primaryService || "Radiotherapy Session",
     room: schedule.room || "",
   };
 
@@ -74,10 +82,10 @@ export function PatientHomeContent() {
           {/* Patient Name & MRN */}
           <div className="flex flex-wrap items-baseline gap-3">
             <h1 className="text-3xl font-extrabold tracking-tight text-foreground">
-              {patient.fullName}
+              {activePatient.fullName}
             </h1>
             <span className="font-mono text-sm font-semibold text-primary bg-primary/10 px-2.5 py-0.5 rounded-md">
-              {patient.mrn}
+              {activePatient.mrn}
             </span>
             <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md">
               Active Care
@@ -86,21 +94,21 @@ export function PatientHomeContent() {
 
           {/* Demographic & Contact Details */}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-            <span className="font-medium text-foreground">{patient.gender}, {patient.age} yrs</span>
+            <span className="font-medium text-foreground">{activePatient.gender || "Gender Unspecified"}, {activePatient.age ? `${activePatient.age} yrs` : "Age Unspecified"}</span>
             <span>·</span>
             <span className="flex items-center gap-1.5 font-medium text-foreground">
               <Phone className="size-3.5 text-muted-foreground" />
-              {patient.phone}
+              {activePatient.phone || "No phone added"}
             </span>
             <span>·</span>
             <span className="flex items-center gap-1.5">
               <Mail className="size-3.5 text-muted-foreground" />
-              {patient.email}
+              {activePatient.email}
             </span>
             <span>·</span>
             <span className="flex items-center gap-1.5">
               <MapPin className="size-3.5 text-muted-foreground" />
-              {patient.address ? `${patient.address}, ` : ""}{patient.state}
+              {activePatient.address ? `${activePatient.address}, ` : ""}{activePatient.state || "Nigeria"}
             </span>
           </div>
         </div>
@@ -347,7 +355,7 @@ export function PatientHomeContent() {
   );
 }
 
-export function PortalHomePage() {
+export function PortalHomePage({ initialPatient }: { initialPatient?: RegisteredPatient }) {
   return (
     <React.Suspense
       fallback={
@@ -356,7 +364,7 @@ export function PortalHomePage() {
         </div>
       }
     >
-      <PatientHomeContent />
+      <PatientHomeContent initialPatient={initialPatient} />
     </React.Suspense>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useForm } from "react-hook-form";
@@ -77,6 +77,7 @@ const NIGERIAN_STATES = [
 
 export function PatientLoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { setPatient } = usePatientPortalStore();
 
   const [mode, setMode] = useState<"signin" | "signup">("signin");
@@ -96,6 +97,23 @@ export function PatientLoginForm() {
   const [intakeState, setIntakeState] = useState<string>("Lagos State");
   const [intakeAddress, setIntakeAddress] = useState("");
   const [intakeLoading, setIntakeLoading] = useState(false);
+
+  // Auto-switch to intake if directed with searchParams
+  useEffect(() => {
+    const urlStep = searchParams?.get("step");
+    const urlEmail = searchParams?.get("email");
+    const urlName = searchParams?.get("name");
+
+    if (urlStep === "intake" && urlEmail) {
+      setMode("signup");
+      setStep("intake");
+      setActiveEmail(urlEmail);
+      if (urlName) {
+        setActiveFullName(urlName);
+        setIntakeFullName(urlName);
+      }
+    }
+  }, [searchParams]);
 
   const form = useForm<EmailStepValues>({
     resolver: zodResolver(emailStepSchema),
@@ -636,7 +654,7 @@ export function PatientLoginForm() {
                 </Label>
                 <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 dark:bg-emerald-500/20 px-2 py-0.5 rounded-full">
                   <CheckCircle2 className="size-3" />
-                  Verified via OTP
+                  Verified & Locked
                 </span>
               </div>
               <div className="relative">
@@ -652,11 +670,14 @@ export function PatientLoginForm() {
               </div>
             </div>
 
-            {/* Full Legal Name */}
+            {/* Full Legal Name (Pre-filled & Fully Adjustable) */}
             <div className="space-y-1.5">
-              <Label htmlFor="intake-fullname" className="text-xs font-medium text-foreground">
-                Full Legal Name <span className="text-destructive">*</span>
-              </Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="intake-fullname" className="text-xs font-medium text-foreground">
+                  Full Legal Name <span className="text-destructive">*</span>
+                </Label>
+                <span className="text-[11px] text-muted-foreground">Adjustable</span>
+              </div>
               <div className="relative">
                 <Input
                   id="intake-fullname"
@@ -669,6 +690,9 @@ export function PatientLoginForm() {
                 />
                 <User className="absolute right-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
               </div>
+              <p className="text-[11px] text-muted-foreground">
+                Pre-filled from your account. You can adjust this to your official clinical legal name.
+              </p>
             </div>
 
             {/* Phone Number & Age */}

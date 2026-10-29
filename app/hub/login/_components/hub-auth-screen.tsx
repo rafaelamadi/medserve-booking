@@ -15,9 +15,15 @@ export function HubAuthScreen() {
   const emailParam = searchParams?.get("email") || "";
   const mfaParam = searchParams?.get("mfa") || "";
 
+  const tabParam = searchParams?.get("tab");
+  const stepParam = searchParams?.get("step");
+
   const isActivateMode = mode === "activate" || (Boolean(emailParam) && Boolean(mfaParam));
 
-  const [activeTab, setActiveTab] = useState<"staff" | "patient">("staff");
+  const [activeTab, setActiveTab] = useState<"staff" | "patient">(() => {
+    if (tabParam === "patient" || stepParam === "intake") return "patient";
+    return "staff";
+  });
 
   return (
     <div className="flex h-dvh">
