@@ -63,32 +63,49 @@ function ManageAppointmentsContent({ initialPatient }: { initialPatient?: Regist
   const [cancelReason, setCancelReason] = React.useState("");
   const [isCancelling, setIsCancelling] = React.useState(false);
 
-  const schedule: PatientCareSchedule = React.useMemo(() => {
+  const baseSchedule: PatientCareSchedule | null = React.useMemo(() => {
     return (
       PATIENT_SCHEDULES.find(
         (s) =>
           s.patientId === activePatient.id ||
           s.patientMrn === activePatient.mrn ||
           s.reference === activePatient.scheduleRef,
-      ) || PATIENT_SCHEDULES[0]
+      ) || null
     );
   }, [activePatient]);
 
-  const totalSessions = activePatient.totalVisits || schedule.totalVisits || 25;
-  const completedSessions = activePatient.completedVisits || schedule.completedVisits || 14;
-  const percentComplete = Math.round((completedSessions / totalSessions) * 100);
-
-  const nextVisit = patient.nextVisit || {
-    date: schedule.nextVisitDate || "2026-10-27",
-    timeSlot: schedule.nextVisitTime || "08:30 AM",
-    service: schedule.primaryService || patient.primaryService || "Radiotherapy Session",
-    room: schedule.room || "",
-  };
+  const schedule: PatientCareSchedule = React.useMemo(() => {
+    return {
+      id: baseSchedule?.id || `sched-${activePatient.id || "new"}`,
+      reference: baseSchedule?.reference || `SER-${activePatient.mrn || "CARE"}`,
+      patientId: activePatient.id || "",
+      patientMrn: activePatient.mrn || "",
+      patientName: activePatient.fullName || "",
+      patientPhone: activePatient.phone || "",
+      centreCode: (activePatient.centreCode as "MLCC" | "MKDC" | "MUDC") || "MLCC",
+      centreName: activePatient.centreName || "MedServe Care Centre",
+      primaryService: baseSchedule?.primaryService || activePatient.primaryService || "Clinical Consultation",
+      technique: baseSchedule?.technique || "Clinical Consultation & Care",
+      diagnosis: baseSchedule?.diagnosis || "Specialist Care",
+      room: baseSchedule?.room || "",
+      doctorInCharge: baseSchedule?.doctorInCharge || "Clinical Care Team",
+      totalVisits: baseSchedule?.totalVisits || 0,
+      completedVisits: baseSchedule?.completedVisits || 0,
+      remainingVisits: baseSchedule?.remainingVisits || 0,
+      nextVisitDate: baseSchedule?.nextVisitDate || "",
+      nextVisitTime: baseSchedule?.nextVisitTime || "",
+      pattern: baseSchedule?.pattern || "CUSTOM_DATES",
+      startDate: baseSchedule?.startDate || "",
+      projectedEndDate: baseSchedule?.projectedEndDate || "",
+      status: baseSchedule?.status || "ACTIVE",
+      hasRescheduleRequest: false,
+      visits: baseSchedule?.visits || [],
+    };
+  }, [baseSchedule, activePatient]);
 
   // Merge past encounters + future chemotherapy visits + extra user bookings into 1 cohesive schedule
   const mergedSchedule: PatientCareSchedule = React.useMemo(() => {
     const combinedExtra = [...customVisits, ...extraVisits];
-    if (combinedExtra.length === 0) return schedule;
     const existingIds = new Set(schedule.visits.map((v) => v.id));
     const uniqueExtra = combinedExtra.filter((v) => !existingIds.has(v.id));
     return {
@@ -100,6 +117,24 @@ function ManageAppointmentsContent({ initialPatient }: { initialPatient?: Regist
   const allVisits = React.useMemo(() => {
     return mergedSchedule.visits;
   }, [mergedSchedule.visits]);
+
+  const hasAppointments = allVisits.length > 0;
+  const totalSessions = allVisits.length;
+  const completedSessions = allVisits.filter((v) => v.status === "COMPLETED").length;
+  const percentComplete = totalSessions > 0 ? Math.round((completedSessions / totalSessions) * 100) : 0;
+
+  const nextVisit = React.useMemo(() => {
+    if (!hasAppointments) return null;
+    const upcoming = allVisits.find((v) => v.status === "SCHEDULED" || v.status === "IN_TREATMENT") || allVisits[0];
+    if (!upcoming) return null;
+    return {
+      date: upcoming.date,
+      timeSlot: upcoming.timeSlot,
+      service: upcoming.serviceName || activePatient.primaryService || "Clinical Session",
+      room: schedule.room || "",
+      visitNumber: upcoming.visitNumber,
+    };
+  }, [hasAppointments, allVisits, schedule.room, activePatient.primaryService]);
 
   const filteredVisits = React.useMemo(() => {
     if (filter === "UPCOMING") {
@@ -175,69 +210,92 @@ function ManageAppointmentsContent({ initialPatient }: { initialPatient?: Regist
       </div>
 
       {/* Immediate Next Session & Progress Summary Strip */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Next Session Card */}
-        <div className="lg:col-span-2 p-5 rounded-2xl border border-primary/20 bg-primary/5 space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      {hasAppointments && nextVisit ? (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {/* Next Session Card */}
+          <div className="lg:col-span-2 p-5 rounded-2xl border border-primary/20 bg-primary/5 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <span className="text-[11px] font-bold text-primary uppercase tracking-wider block">
+                  Next Confirmed Session
+                </span>
+                <h2 className="text-2xl font-extrabold text-foreground mt-0.5">
+                  {nextVisit.date} at {nextVisit.timeSlot}
+                </h2>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Session #{nextVisit.visitNumber || 1} of {totalSessions} · {nextVisit.service}
+                </p>
+              </div>
+
+              <Button
+                size="default"
+                className="h-9 px-4 gap-2 text-xs font-semibold shadow-xs shrink-0 self-start sm:self-auto"
+                onClick={() => handleOpenSlip()}
+              >
+                <Printer className="size-3.5" />
+                Print Pass
+              </Button>
+            </div>
+
+            <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2 border-t border-border/40">
+              <Clock className="size-3.5 text-primary" />
+              <span>Centre: {schedule.centreName}. Arrive 15 mins prior for check-in and vitals verification.</span>
+            </div>
+          </div>
+
+          {/* Progress Card */}
+          <div className="p-5 rounded-2xl border bg-card space-y-3 flex flex-col justify-between">
             <div>
-              <span className="text-[11px] font-bold text-primary uppercase tracking-wider block">
-                Next Confirmed Session
-              </span>
-              <h2 className="text-2xl font-extrabold text-foreground mt-0.5">
-                {nextVisit.date === "2026-10-27" ? "Tomorrow, 27 October 2026" : nextVisit.date} at {nextVisit.timeSlot}
-              </h2>
-              <p className="text-xs text-muted-foreground mt-1">
-                Chemotherapy #15 of {totalSessions} · {nextVisit.service}
-              </p>
+              <div className="flex items-center justify-between text-xs mb-1">
+                <span className="font-bold text-foreground">Course Completion</span>
+                <span className="font-extrabold text-primary tabular-nums text-sm">{percentComplete}%</span>
+              </div>
+              <div className="h-2.5 w-full overflow-hidden rounded-full bg-secondary">
+                <div
+                  className="h-full rounded-full bg-primary transition-all duration-500"
+                  style={{ width: `${percentComplete}%` }}
+                />
+              </div>
             </div>
 
-            <Button
-              size="default"
-              className="h-9 px-4 gap-2 text-xs font-semibold shadow-xs shrink-0 self-start sm:self-auto"
-              onClick={() => handleOpenSlip()}
-            >
-              <Printer className="size-3.5" />
-              Print Pass
-            </Button>
-          </div>
-
-          <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2 border-t border-border/40">
-            <Clock className="size-3.5 text-primary" />
-            <span>Centre: {schedule.centreName}. Arrive 15 mins prior for check-in and vitals verification.</span>
-          </div>
-        </div>
-
-        {/* Progress Card */}
-        <div className="p-5 rounded-2xl border bg-card space-y-3 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between text-xs mb-1">
-              <span className="font-bold text-foreground">Course Completion</span>
-              <span className="font-extrabold text-primary tabular-nums text-sm">{percentComplete}%</span>
-            </div>
-            <div className="h-2.5 w-full overflow-hidden rounded-full bg-secondary">
-              <div
-                className="h-full rounded-full bg-primary transition-all duration-500"
-                style={{ width: `${percentComplete}%` }}
-              />
-            </div>
-          </div>
-
-          <div className="space-y-1 text-xs text-muted-foreground">
-            <div className="flex justify-between">
-              <span>Delivered Sessions:</span>
-              <strong className="text-foreground font-semibold">{completedSessions} of {totalSessions}</strong>
-            </div>
-            <div className="flex justify-between">
-              <span>Remaining Sessions:</span>
-              <strong className="text-foreground font-semibold">{totalSessions - completedSessions}</strong>
-            </div>
-            <div className="flex justify-between">
-              <span>Target End Date:</span>
-              <strong className="text-foreground font-semibold">{schedule.projectedEndDate}</strong>
+            <div className="space-y-1 text-xs text-muted-foreground">
+              <div className="flex justify-between">
+                <span>Delivered Sessions:</span>
+                <strong className="text-foreground font-semibold">{completedSessions} of {totalSessions}</strong>
+              </div>
+              <div className="flex justify-between">
+                <span>Remaining Sessions:</span>
+                <strong className="text-foreground font-semibold">{totalSessions - completedSessions}</strong>
+              </div>
+              <div className="flex justify-between">
+                <span>Target End Date:</span>
+                <strong className="text-foreground font-semibold">{schedule.projectedEndDate || "—"}</strong>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      ) : (
+        <div className="p-8 rounded-2xl border border-dashed border-border/80 bg-card text-center space-y-3">
+          <div className="mx-auto size-11 rounded-2xl bg-primary/10 text-primary flex items-center justify-center font-bold">
+            <CalendarPlus className="size-5" />
+          </div>
+          <div className="max-w-md mx-auto space-y-1">
+            <h2 className="text-base font-bold text-foreground">No Confirmed Sessions</h2>
+            <p className="text-xs text-muted-foreground">
+              You do not have any appointments scheduled yet. Click below to book a session or consultation at your preferred centre.
+            </p>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            className="h-9 px-4 gap-2 text-xs font-semibold shadow-xs"
+            onClick={() => setBookingOpen(true)}
+          >
+            <CalendarPlus className="size-3.5" />
+            Book Your First Appointment
+          </Button>
+        </div>
+      )}
 
       {/* Merged Appointments & History Section */}
       <div className="space-y-4 pt-2">
@@ -316,7 +374,27 @@ function ManageAppointmentsContent({ initialPatient }: { initialPatient?: Regist
           />
         ) : (
           <div className="divide-y divide-border/60 rounded-xl border bg-card overflow-hidden">
-            {filteredVisits.map((visit) => {
+            {filteredVisits.length === 0 ? (
+              <div className="p-12 text-center space-y-3">
+                <CalendarPlus className="size-8 mx-auto text-muted-foreground/60" />
+                <div className="space-y-1">
+                  <h4 className="text-sm font-bold text-foreground">No Appointments Recorded</h4>
+                  <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                    You do not have any appointments in this view. Book your first appointment to populate your care ledger.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="gap-1.5 text-xs font-semibold"
+                  onClick={() => setBookingOpen(true)}
+                >
+                  <CalendarPlus className="size-3.5" />
+                  Book Appointment
+                </Button>
+              </div>
+            ) : (
+              filteredVisits.map((visit) => {
               const isCompleted = visit.status === "COMPLETED";
               const isNext = visit.status === "IN_TREATMENT" || visit.visitNumber === 15;
 
@@ -407,7 +485,7 @@ function ManageAppointmentsContent({ initialPatient }: { initialPatient?: Regist
                   </div>
                 </div>
               );
-            })}
+            }))}
           </div>
         )}
       </div>
@@ -510,13 +588,13 @@ function ManageAppointmentsContent({ initialPatient }: { initialPatient?: Regist
               <div className="flex justify-between py-1 border-b border-dashed">
                 <span className="text-muted-foreground">Session:</span>
                 <span className="font-semibold text-foreground">
-                  Chemotherapy #{selectedVisitForSlip?.visitNumber || 15} · {selectedVisitForSlip?.serviceName || nextVisit.service}
+                  Session #{selectedVisitForSlip?.visitNumber || nextVisit?.visitNumber || 1} · {selectedVisitForSlip?.serviceName || nextVisit?.service || "Clinical Consultation"}
                 </span>
               </div>
               <div className="flex justify-between py-1 border-b border-dashed">
                 <span className="text-muted-foreground">Date & Time:</span>
                 <span className="font-semibold text-foreground">
-                  {selectedVisitForSlip?.date || nextVisit.date} at {selectedVisitForSlip?.timeSlot || nextVisit.timeSlot}
+                  {selectedVisitForSlip?.date || nextVisit?.date || "—"} at {selectedVisitForSlip?.timeSlot || nextVisit?.timeSlot || "—"}
                 </span>
               </div>
               <div className="flex justify-between py-1">

@@ -94,7 +94,7 @@ export function PatientLoginForm() {
   const [intakePhone, setIntakePhone] = useState("+234 ");
   const [intakeGender, setIntakeGender] = useState<"Female" | "Male" | "">("");
   const [intakeAge, setIntakeAge] = useState<string>("");
-  const [intakeState, setIntakeState] = useState<string>("Lagos State");
+  const [intakeState, setIntakeState] = useState<string>("");
   const [intakeAddress, setIntakeAddress] = useState("");
   const [intakeLoading, setIntakeLoading] = useState(false);
 
@@ -301,9 +301,19 @@ export function PatientLoginForm() {
       return;
     }
 
-    const ageNum = intakeAge ? Number(intakeAge) : undefined;
-    if (ageNum !== undefined && (isNaN(ageNum) || ageNum < 1 || ageNum > 120)) {
+    if (!intakeAge || isNaN(Number(intakeAge)) || Number(intakeAge) < 1 || Number(intakeAge) > 120) {
       toast.error("Please enter a valid age between 1 and 120.");
+      return;
+    }
+    const ageNum = Number(intakeAge);
+
+    if (!intakeGender) {
+      toast.error("Please select your sex.");
+      return;
+    }
+
+    if (!intakeState) {
+      toast.error("Please select your state of residence.");
       return;
     }
 
@@ -717,7 +727,7 @@ export function PatientLoginForm() {
 
               <div className="space-y-1.5">
                 <Label htmlFor="intake-age" className="text-xs font-medium text-foreground">
-                  Age (Years) <span className="text-muted-foreground font-normal">(optional)</span>
+                  Age (Years) <span className="text-destructive">*</span>
                 </Label>
                 <Input
                   id="intake-age"
@@ -727,24 +737,26 @@ export function PatientLoginForm() {
                   placeholder="e.g. 42"
                   value={intakeAge}
                   onChange={(e) => setIntakeAge(e.target.value)}
+                  required
                   className="text-xs"
                 />
               </div>
             </div>
 
-            {/* Biological Sex & State of Residence */}
+            {/* Sex & State of Residence (Both compulsory) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="intake-gender" className="text-xs font-medium text-foreground">
-                  Biological Sex
+                  Sex <span className="text-destructive">*</span>
                 </Label>
                 <select
                   id="intake-gender"
+                  required
                   className="h-9 w-full rounded-md border border-input bg-background px-3 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   value={intakeGender}
                   onChange={(e) => setIntakeGender(e.target.value as "Female" | "Male" | "")}
                 >
-                  <option value="">Select Biological Sex</option>
+                  <option value="">Select Sex</option>
                   <option value="Female">Female</option>
                   <option value="Male">Male</option>
                 </select>
@@ -752,14 +764,16 @@ export function PatientLoginForm() {
 
               <div className="space-y-1.5">
                 <Label htmlFor="intake-state" className="text-xs font-medium text-foreground">
-                  State of Residence
+                  State of Residence <span className="text-destructive">*</span>
                 </Label>
                 <select
                   id="intake-state"
+                  required
                   className="h-9 w-full rounded-md border border-input bg-background px-3 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   value={intakeState}
                   onChange={(e) => setIntakeState(e.target.value)}
                 >
+                  <option value="">Select State</option>
                   {NIGERIAN_STATES.map((stateName) => (
                     <option key={stateName} value={stateName}>
                       {stateName}

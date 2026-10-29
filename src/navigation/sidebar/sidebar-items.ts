@@ -1,6 +1,7 @@
 import {
   Calendar,
   CalendarCheck,
+  Headphones,
   Home,
   LayoutDashboard,
   type LucideIcon,
@@ -114,6 +115,12 @@ export const patientSidebarItems: NavGroup[] = [
         title: "Manage Appointments",
         url: "/dashboard/portal/appointments",
         icon: CalendarCheck,
+      },
+      {
+        id: "patient-support",
+        title: "Support",
+        url: "/dashboard/portal/support",
+        icon: Headphones,
       },
     ],
   },

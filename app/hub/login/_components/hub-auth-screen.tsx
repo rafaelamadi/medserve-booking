@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Activity, ShieldCheck, HeartPulse, UserCog, User } from "lucide-react";
+import { Activity, ShieldCheck, HeartPulse, UserCog, User, UserCheck } from "lucide-react";
 
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { HubLoginForm } from "./hub-login-form";
@@ -19,9 +19,10 @@ export function HubAuthScreen() {
   const stepParam = searchParams?.get("step");
 
   const isActivateMode = mode === "activate" || (Boolean(emailParam) && Boolean(mfaParam));
+  const isIntakeMode = stepParam === "intake";
 
   const [activeTab, setActiveTab] = useState<"staff" | "patient">(() => {
-    if (tabParam === "patient" || stepParam === "intake") return "patient";
+    if (tabParam === "patient" || isIntakeMode) return "patient";
     return "staff";
   });
 
@@ -39,6 +40,8 @@ export function HubAuthScreen() {
             <div className="mx-auto flex size-16 items-center justify-center rounded-2xl bg-primary-foreground/10 backdrop-blur-sm ring-1 ring-primary-foreground/20 transition-all duration-300">
               {isActivateMode ? (
                 <ShieldCheck className="text-primary-foreground size-8" />
+              ) : isIntakeMode ? (
+                <UserCheck className="text-primary-foreground size-8" />
               ) : activeTab === "staff" ? (
                 <ShieldCheck className="text-primary-foreground size-8" />
               ) : (
@@ -49,6 +52,8 @@ export function HubAuthScreen() {
               <h1 className="text-primary-foreground text-4xl font-light tracking-tight">
                 {isActivateMode
                   ? "Staff Onboarding"
+                  : isIntakeMode
+                  ? "Patient Registration"
                   : activeTab === "staff"
                   ? "Clinician & Staff Hub"
                   : "Patient Home"}
@@ -56,6 +61,8 @@ export function HubAuthScreen() {
               <p className="text-primary-foreground/80 text-sm leading-relaxed">
                 {isActivateMode
                   ? "Welcome to the MedServe Oncology Network. Complete your clinical account activation and set your permanent password."
+                  : isIntakeMode
+                  ? "Welcome to MedServe. Complete your clinical demographic profile to activate your official medical record and access your care portal."
                   : activeTab === "staff"
                   ? "Single sign-on access to oncology appointments, radiotherapy series, and patient queue management across MLCC, MKDC, and MUDC centres."
                   : "View upcoming treatment sessions, verified encounter history, and appointment management across all MedServe cancer centres."}
@@ -75,6 +82,9 @@ export function HubAuthScreen() {
           {isActivateMode ? (
             /* Dedicated First-Time Staff Activation Flow */
             <StaffActivationForm initialEmail={emailParam} initialMfa={mfaParam} />
+          ) : isIntakeMode ? (
+            /* Dedicated Patient Clinical Intake Flow (Tabs removed during patient confirmation) */
+            <PatientLoginForm />
           ) : (
             /* Standard Role switcher tab */
             <Tabs

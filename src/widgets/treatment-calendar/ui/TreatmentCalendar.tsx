@@ -90,17 +90,24 @@ export function TreatmentCalendar({ schedule, onOpenPass }: TreatmentCalendarPro
     return map;
   }, [schedule.visits]);
 
-  // Default next upcoming visit: Chemotherapy #15 (Oct 27, 2026)
+  // Default next upcoming visit
   const nextVisit = React.useMemo(() => {
     return (
-      schedule.visits.find((v) => v.status === "IN_TREATMENT" || v.visitNumber === 15) ||
-      schedule.visits[14] ||
-      schedule.visits[0]
+      (schedule.visits || []).find((v) => v.status === "SCHEDULED" || v.status === "IN_TREATMENT") ||
+      (schedule.visits && schedule.visits.length > 0 ? schedule.visits[0] : null)
     );
   }, [schedule.visits]);
 
-  // Selected visit and active reference date (defaults to Oct 27, 2026)
-  const defaultDate = React.useMemo(() => new Date(2026, 9, 27), []);
+  // Selected visit and active reference date
+  const defaultDate = React.useMemo(() => {
+    if (nextVisit?.date) {
+      const [year, month, day] = nextVisit.date.split("-").map(Number);
+      if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+        return new Date(year, month - 1, day);
+      }
+    }
+    return new Date();
+  }, [nextVisit]);
   const [currentDate, setCurrentDate] = React.useState<Date>(defaultDate);
   const [selectedVisit, setSelectedVisit] = React.useState<PatientVisit | null>(nextVisit);
 
@@ -270,23 +277,18 @@ export function TreatmentCalendar({ schedule, onOpenPass }: TreatmentCalendarPro
       {/* 1. Calendar Header with Full Month & Year Selectors and View Switcher */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b">
         {/* Left: Title & Subtitle */}
-        <div className="flex items-center gap-2.5">
-          <div className="size-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold shrink-0">
-            <CalendarIcon className="size-4" />
+        <div>
+          <div className="flex items-center gap-2">
+            <h3 className="text-lg font-bold text-foreground">Treatment Calendar</h3>
+            {subViewLabel && (
+              <Badge variant="secondary" className="text-xs font-mono font-medium">
+                {subViewLabel}
+              </Badge>
+            )}
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-lg font-bold text-foreground">Treatment Calendar</h3>
-              {subViewLabel && (
-                <Badge variant="secondary" className="text-xs font-mono font-medium">
-                  {subViewLabel}
-                </Badge>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Daily chemotherapy schedule, completed sessions, and attendance verification.
-            </p>
-          </div>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Your scheduled sessions, clinic visits, and appointment calendar.
+          </p>
         </div>
 
         {/* Center / Right: Interactive Month & Year Picker + View Switcher */}
@@ -685,16 +687,6 @@ export function TreatmentCalendar({ schedule, onOpenPass }: TreatmentCalendarPro
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
-                  {onOpenPass && (
-                    <Button
-                      size="default"
-                      className="h-9 px-4 gap-2 text-xs font-semibold shadow-xs"
-                      onClick={() => onOpenPass(currentDayVisit)}
-                    >
-                      <Printer className="size-3.5" />
-                      Print Pass
-                    </Button>
-                  )}
                   <Button asChild variant="outline" size="default" className="h-9 px-4 text-xs font-medium">
                     <Link href="/dashboard/portal/appointments">
                       Full Ledger
@@ -791,16 +783,6 @@ export function TreatmentCalendar({ schedule, onOpenPass }: TreatmentCalendarPro
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            {onOpenPass && (
-              <Button
-                size="sm"
-                className="h-8 gap-1.5 text-xs font-semibold"
-                onClick={() => onOpenPass(selectedVisit)}
-              >
-                <Printer className="size-3.5" />
-                Print Pass
-              </Button>
-            )}
             <Button
               type="button"
               variant="outline"
@@ -819,15 +801,11 @@ export function TreatmentCalendar({ schedule, onOpenPass }: TreatmentCalendarPro
         <div className="flex flex-wrap items-center gap-4">
           <span className="flex items-center gap-1.5">
             <span className="size-2.5 rounded-full bg-emerald-500" />
-            Delivered Chemotherapy (14)
+            Completed Sessions ({(schedule.visits || []).filter((v) => v.status === "COMPLETED").length})
           </span>
           <span className="flex items-center gap-1.5">
             <span className="size-2.5 rounded-full bg-primary ring-2 ring-primary/30" />
-            Next Session (#15, Oct 27)
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="size-2.5 rounded-full bg-muted-foreground/30" />
-            Scheduled Chemotherapy (10)
+            Scheduled Sessions ({(schedule.visits || []).filter((v) => v.status === "SCHEDULED" || v.status === "IN_TREATMENT").length})
           </span>
           <span className="flex items-center gap-1.5">
             <span className="size-2.5 rounded-sm bg-muted/40" />
@@ -836,7 +814,7 @@ export function TreatmentCalendar({ schedule, onOpenPass }: TreatmentCalendarPro
         </div>
 
         <span className="font-mono text-[11px] text-muted-foreground">
-          Protocol: VMAT 25-Session Daily Course
+          {schedule.technique || "Clinical Care Calendar"}
         </span>
       </div>
     </div>
