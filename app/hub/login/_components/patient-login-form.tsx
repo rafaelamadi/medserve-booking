@@ -117,23 +117,12 @@ export function PatientLoginForm() {
   async function handleGoogleAuth() {
     setGoogleLoading(true);
     try {
-      const res = await signIn("google", {
+      await signIn("google", {
         callbackUrl: "/dashboard/portal",
-        redirect: false,
       });
-
-      if (res?.error) {
-        toast.info("Google OAuth notice", {
-          description: "Google credentials are not configured in this environment. Please sign in with your email below.",
-        });
-      } else if (res?.url) {
-        router.push(res.url);
-      }
-    } catch {
-      toast.info("Google OAuth notice", {
-        description: "Google credentials are not configured in this environment. Please sign in with your email below.",
-      });
-    } finally {
+    } catch (err) {
+      console.error("Google sign-in error:", err);
+      toast.error("Could not initialize Google Sign-In. Please try again or use email sign-in.");
       setGoogleLoading(false);
     }
   }
