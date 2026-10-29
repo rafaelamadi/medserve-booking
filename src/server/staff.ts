@@ -253,3 +253,34 @@ export async function resendStaffInviteServer(
     };
   }
 }
+
+/**
+ * Permanently delete a staff member from Supabase.
+ */
+export async function deleteStaffMemberServer(
+  staffId: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    // Only attempt DB delete if it exists in Supabase (CUID format)
+    if (staffId.startsWith("c")) {
+      await prisma.$transaction([
+        prisma.staffCentre.deleteMany({
+          where: { staffId },
+        }),
+        prisma.staffUser.delete({
+          where: { id: staffId },
+        }),
+      ]);
+    }
+
+    revalidatePath("/dashboard/settings");
+    return { success: true };
+  } catch (error) {
+    console.error("Error deleting staff member:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to delete staff member from database.",
+    };
+  }
+}
+

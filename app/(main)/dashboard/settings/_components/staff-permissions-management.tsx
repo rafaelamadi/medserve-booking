@@ -58,6 +58,7 @@ import {
   enrollStaffMemberServer,
   toggleStaffStatusServer,
   resendStaffInviteServer,
+  deleteStaffMemberServer,
 } from "@/server/staff";
 import { useCentreScope } from "@/shared/context/centre-scope-context";
 
@@ -249,21 +250,35 @@ export function StaffPermissionsManagement({
     }
   };
 
-  const handleDeleteStaff = (staffId: string, staffName: string) => {
+  const handleDeleteStaff = async (staffId: string, staffName: string) => {
     const staffMember = staffList.find((s) => s.id === staffId);
+    // Optimistic UI removal
     setStaffList((prev) => prev.filter((s) => s.id !== staffId));
-    toast.error("Staff Member Removed", {
-      description: `${staffName} was removed from the directory.`,
-      action: staffMember
-        ? {
-            label: "Undo",
-            onClick: () => {
-              setStaffList((prev) => [staffMember, ...prev]);
-              toast.success(`Restored ${staffName}`);
-            },
-          }
-        : undefined,
-    });
+
+    try {
+      const res = await deleteStaffMemberServer(staffId);
+      if (res.success) {
+        toast.success("Staff Member Removed", {
+          description: `${staffName} was permanently deleted from the directory.`,
+        });
+      } else {
+        // Revert on failure
+        if (staffMember) {
+          setStaffList((prev) => [staffMember, ...prev]);
+        }
+        toast.error("Delete Failed", {
+          description: res.error || "Could not delete staff member from database.",
+        });
+      }
+    } catch (err) {
+      console.error("Delete staff error:", err);
+      if (staffMember) {
+        setStaffList((prev) => [staffMember, ...prev]);
+      }
+      toast.error("Delete Failed", {
+        description: "Network error deleting staff account.",
+      });
+    }
   };
 
   return (
