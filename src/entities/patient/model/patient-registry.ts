@@ -26,12 +26,12 @@ export interface RegisteredPatient {
   id: string;
   mrn: string;
   fullName: string;
-  gender: "Male" | "Female";
-  age: number;
+  gender?: "Male" | "Female" | string | null;
+  age?: number | null;
   phone: string;
   email: string;
-  address: string;
-  state: string;
+  address?: string | null;
+  state?: string | null;
   centreCode: "MLCC" | "MKDC" | "MUDC";
   centreName: string;
   primaryDiagnosis: string;

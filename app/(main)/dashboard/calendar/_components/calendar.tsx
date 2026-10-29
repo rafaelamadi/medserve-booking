@@ -36,8 +36,6 @@ import {
   type CentreCalendarEvent,
   type RoomCategory,
 } from "@/data/centre-calendar-data";
-import { NewAppointmentDialog } from "../../appointments/_components/new-appointment-dialog";
-import type { ClinicalAppointment } from "@/data/clinical-queue-data";
 import {
   getLiveAppointmentsByCentre,
   updateAppointmentStatusServer,
@@ -199,11 +197,6 @@ export function Calendar() {
     }
   };
 
-  const handleAppointmentCreated = () => {
-    refreshCalendar();
-    window.dispatchEvent(new Event("medserve:appointment-sync"));
-  };
-
   return (
     <div className="flex flex-col overflow-hidden rounded-lg border bg-card shadow-xs">
       {/* Calendar Header Controls */}
@@ -266,9 +259,6 @@ export function Calendar() {
               </SelectGroup>
             </SelectContent>
           </Select>
-
-          {/* Book Slot Dialog */}
-          <NewAppointmentDialog onCreated={handleAppointmentCreated} />
         </div>
       </div>
 

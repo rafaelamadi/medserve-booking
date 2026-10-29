@@ -8,7 +8,6 @@ import type { RegisteredPatient } from "@/data/patient-registry-data";
 import { getLivePatients } from "@/server/patients";
 import { useCentreScope } from "@/shared/context/centre-scope-context";
 
-import { NewPatientDialog } from "./new-patient-dialog";
 import { PatientsTable } from "./patients-table";
 
 interface PatientsClientProps {
@@ -50,19 +49,9 @@ export function PatientsClient({ initialPatients }: PatientsClientProps) {
     0,
   );
 
-  const handleCreated = (newPatient: RegisteredPatient) => {
-    setPatientList((prev) => {
-      const exists = prev.some((p) => p.id === newPatient.id || p.mrn === newPatient.mrn);
-      if (exists) {
-        return prev.map((p) => (p.id === newPatient.id ? newPatient : p));
-      }
-      return [newPatient, ...prev];
-    });
-  };
-
   return (
     <div className="@container/main flex flex-col gap-5 md:gap-6">
-      {/* Page Title & Action Header */}
+      {/* Page Title Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">
@@ -73,10 +62,6 @@ export function PatientsClient({ initialPatients }: PatientsClientProps) {
               ? "Master directory of registered patients across Lagos (MLCC), Kano (MKDC), and Umuahia (MUDC). Click any patient to view in-depth clinical history, past visits, and encounter notes."
               : `Master directory of registered patients for ${selectedCentre.name} (${selectedCentre.city}). Click any patient to view in-depth clinical history, past visits, and encounter notes.`}
           </p>
-        </div>
-
-        <div className="flex items-center gap-2.5">
-          <NewPatientDialog onCreated={handleCreated} />
         </div>
       </div>
 

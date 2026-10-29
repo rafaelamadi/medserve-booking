@@ -5,6 +5,26 @@ import type { StaffHubUser } from "@/entities/centre/model/settings";
 import { STAFF_HUB_USERS_DATA } from "@/entities/centre/model/settings";
 import { sendStaffInviteEmail } from "@/shared/lib/email";
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
+import bcrypt from "bcryptjs";
+
+/**
+ * Resolves the real base URL from incoming HTTP request headers or environment variables.
+ * Ensures invite URLs in emails use the live website domain instead of localhost.
+ */
+export async function getServerBaseUrl(): Promise<string> {
+  try {
+    const headersList = await headers();
+    const host = headersList.get("x-forwarded-host") || headersList.get("host");
+    const proto = headersList.get("x-forwarded-proto") || (host?.includes("localhost") ? "http" : "https");
+    if (host) {
+      return `${proto}://${host}`;
+    }
+  } catch {
+    // Non-request contexts
+  }
+  return process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+}
 
 export interface EnrollStaffInput {
   fullName: string;
@@ -157,13 +177,16 @@ export async function enrollStaffMemberServer(
     const centreName = CENTRE_NAMES[input.primaryCentre] || centre.name;
     const roleLabel = ROLE_LABELS[input.role] || input.role;
 
+    const baseUrl = await getServerBaseUrl();
+    const inviteUrl = `${baseUrl}/hub/login?mode=activate&email=${encodeURIComponent(trimmedEmail)}&mfa=${mfaCode}`;
+
     await sendStaffInviteEmail({
       to: trimmedEmail,
       fullName: trimmedName,
       role: roleLabel,
       centreName,
       mfaCode,
-      inviteUrl: `http://localhost:3000/hub/login?email=${encodeURIComponent(trimmedEmail)}&mfa=${mfaCode}`,
+      inviteUrl,
     });
 
     const enrolledStaff: StaffHubUser = {
@@ -235,13 +258,16 @@ export async function resendStaffInviteServer(
     const centreName = CENTRE_NAMES[staff.primaryCentre] || "MedServe Medical Centre";
     const roleLabel = ROLE_LABELS[staff.role] || staff.role;
 
+    const baseUrl = await getServerBaseUrl();
+    const inviteUrl = `${baseUrl}/hub/login?mode=activate&email=${encodeURIComponent(staff.email)}&mfa=${staff.mfaCode}`;
+
     const result = await sendStaffInviteEmail({
       to: staff.email,
       fullName: staff.fullName,
       role: roleLabel,
       centreName,
       mfaCode: staff.mfaCode,
-      inviteUrl: `http://localhost:3000/hub/login?email=${encodeURIComponent(staff.email)}&mfa=${staff.mfaCode}`,
+      inviteUrl,
     });
 
     return result;
@@ -258,20 +284,24 @@ export async function resendStaffInviteServer(
  * Permanently delete a staff member from Supabase.
  */
 export async function deleteStaffMemberServer(
-  staffId: string
+  staffIdOrEmail: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    // Only attempt DB delete if it exists in Supabase (CUID format)
-    if (staffId.startsWith("c")) {
-      await prisma.$transaction([
-        prisma.staffCentre.deleteMany({
-          where: { staffId },
-        }),
-        prisma.staffUser.delete({
-          where: { id: staffId },
-        }),
-      ]);
-    }
+    const trimmed = staffIdOrEmail.trim();
+    await prisma.$transaction([
+      prisma.staffCentre.deleteMany({
+        where: {
+          staff: {
+            OR: [{ id: trimmed }, { email: trimmed.toLowerCase() }],
+          },
+        },
+      }),
+      prisma.staffUser.deleteMany({
+        where: {
+          OR: [{ id: trimmed }, { email: trimmed.toLowerCase() }],
+        },
+      }),
+    ]);
 
     revalidatePath("/dashboard/settings");
     return { success: true };
@@ -280,6 +310,136 @@ export async function deleteStaffMemberServer(
     return {
       success: false,
       error: error instanceof Error ? error.message : "Failed to delete staff member from database.",
+    };
+  }
+}
+
+/**
+ * Fetch staff invitation details for the activation screen.
+ */
+export async function getStaffInviteDetailsServer(email: string): Promise<{
+  success: boolean;
+  staff?: {
+    name: string;
+    email: string;
+    role: string;
+    centreName: string;
+    isPending: boolean;
+  };
+  error?: string;
+}> {
+  try {
+    const trimmed = email.trim().toLowerCase();
+    const staff = await prisma.staffUser.findUnique({
+      where: { email: trimmed },
+      include: {
+        centres: {
+          include: { centre: true },
+        },
+      },
+    });
+
+    if (!staff) {
+      return { success: false, error: "No staff record found for this invitation." };
+    }
+
+    const centre = staff.centres[0]?.centre;
+    const centreName = centre ? centre.name : "MedServe Medical Centre";
+    const roleLabel = ROLE_LABELS[staff.role] || staff.role;
+
+    return {
+      success: true,
+      staff: {
+        name: staff.name,
+        email: staff.email,
+        role: roleLabel,
+        centreName,
+        isPending: !staff.passwordHash,
+      },
+    };
+  } catch (err) {
+    console.error("Error fetching staff invite details:", err);
+    return { success: false, error: "Could not retrieve staff invitation record." };
+  }
+}
+
+/**
+ * Activates an invited staff member by setting their permanent password and marking them ACTIVE.
+ */
+export async function activateStaffAccountServer(input: {
+  email: string;
+  password: string;
+  mfaCode?: string;
+}): Promise<{ success: boolean; staff?: StaffHubUser; error?: string }> {
+  try {
+    const trimmedEmail = input.email.trim().toLowerCase();
+    const trimmedPassword = input.password.trim();
+
+    if (!trimmedEmail) {
+      return { success: false, error: "Staff email is required." };
+    }
+    if (trimmedPassword.length < 8) {
+      return { success: false, error: "Password must be at least 8 characters long." };
+    }
+
+    const staff = await prisma.staffUser.findUnique({
+      where: { email: trimmedEmail },
+      include: {
+        centres: {
+          include: { centre: true },
+        },
+      },
+    });
+
+    if (!staff) {
+      return { success: false, error: "No staff enrollment record found for this email address." };
+    }
+
+    // Hash the password securely
+    const passwordHash = await bcrypt.hash(trimmedPassword, 10);
+
+    const updated = await prisma.staffUser.update({
+      where: { id: staff.id },
+      data: {
+        passwordHash,
+        isActive: true,
+      },
+      include: {
+        centres: {
+          include: { centre: true },
+        },
+      },
+    });
+
+    revalidatePath("/dashboard/settings");
+
+    const primaryCentreCode = (updated.centres[0]?.centre?.code as "MLCC" | "MKDC" | "MUDC") || "MLCC";
+    const numericSeed = Math.abs(
+      updated.email.split("").reduce((acc, c) => acc * 31 + c.charCodeAt(0), 0) % 9000
+    );
+
+    return {
+      success: true,
+      staff: {
+        id: updated.id,
+        mfaCode: input.mfaCode || `MFA-${1000 + numericSeed}`,
+        fullName: updated.name,
+        email: updated.email,
+        phone: "+234 800 000 0000",
+        role: updated.role,
+        roleLabel: ROLE_LABELS[updated.role] || "Staff Member",
+        primaryCentre: primaryCentreCode,
+        status: "ACTIVE",
+        mfaEnabled: true,
+        lastLogin: "Just activated",
+        licenseNumber: `MDCN-${updated.role.slice(0, 2)}-${1000 + numericSeed}`,
+      },
+    };
+  } catch (err) {
+    console.error("Error activating staff account:", err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to activate staff account.",
     };
   }
 }

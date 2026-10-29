@@ -152,9 +152,9 @@ export function PatientDetailSheet({
                   </Badge>
                 </div>
                 <SheetDescription className="text-xs text-muted-foreground mt-0.5 flex flex-wrap items-center gap-x-3">
-                  <span>{patient.gender}, {patient.age} years</span>
+                  <span>{patient.gender && patient.age ? `${patient.gender}, ${patient.age} years` : patient.gender || (patient.age ? `${patient.age} years` : "Unspecified Demographics")}</span>
                   <span>•</span>
-                  <span>{patient.phone}</span>
+                  <span>{patient.phone || "—"}</span>
                   <span>•</span>
                   <span>{patient.centreName}</span>
                 </SheetDescription>

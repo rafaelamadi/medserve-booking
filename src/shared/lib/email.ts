@@ -101,12 +101,14 @@ export async function sendStaffInviteEmail(
   const { to, fullName, role, centreName, mfaCode, inviteUrl } = params;
   const firstName = fullName.split(" ")[0] || "Staff Member";
   const activationLink = inviteUrl || "http://localhost:3000/hub/login";
+  const uniqueToken = `${mfaCode}-${Date.now()}`;
 
   const html = `
     <!DOCTYPE html>
     <html>
       <head>
         <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
           body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 24px; color: #1e293b; }
           .card { background-color: #ffffff; max-width: 540px; margin: 0 auto; border-radius: 16px; border: 1px solid #e2e8f0; padding: 36px 32px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
@@ -117,48 +119,68 @@ export async function sendStaffInviteEmail(
           .info-table td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; }
           .info-table td:first-child { color: #64748b; font-weight: 500; width: 40%; }
           .info-table td:last-child { color: #0f172a; font-weight: 600; }
-          .mfa-box { background: #f8fafc; border-radius: 12px; padding: 16px; margin: 20px 0; text-align: center; border: 1px dashed #cbd5e1; }
+          .mfa-box { background: #f8fafc; border-radius: 12px; padding: 18px; margin: 20px 0; text-align: center; border: 1px dashed #cbd5e1; }
           .mfa-code { font-family: monospace; font-size: 28px; font-weight: 700; letter-spacing: 6px; color: #0f172a; }
           .btn { display: block; text-align: center; background-color: #0f172a; color: #ffffff !important; font-weight: 600; font-size: 14px; padding: 14px 24px; border-radius: 10px; text-decoration: none; margin: 24px 0 12px; }
           .footer { text-align: center; font-size: 12px; color: #94a3b8; margin-top: 28px; border-top: 1px solid #f1f5f9; padding-top: 18px; }
         </style>
       </head>
       <body>
-        <div class="card">
-          <div class="badge">MedServe Clinician & Staff Hub</div>
-          <h1 class="title">Staff Account Invitation</h1>
-          <p class="subtitle">Hello ${firstName}, you have been enrolled as a clinical staff member on the MedServe Oncology Network.</p>
-          
-          <table class="info-table">
-            <tr>
-              <td>Assigned Role</td>
-              <td>${role}</td>
-            </tr>
-            <tr>
-              <td>Clinical Facility</td>
-              <td>${centreName}</td>
-            </tr>
-            <tr>
-              <td>Account Email</td>
-              <td>${to}</td>
-            </tr>
-          </table>
-
-          <div class="mfa-box">
-            <div style="font-size: 12px; color: #64748b; margin-bottom: 6px; text-transform: uppercase; font-weight: 600;">Your One-Time MFA Enrollment Code</div>
-            <div class="mfa-code">${mfaCode}</div>
-          </div>
-
-          <a href="${activationLink}" class="btn">Activate Account & Set Password</a>
-
-          <p style="font-size: 12px; color: #64748b; text-align: center; margin-top: 12px;">
-            Use your email and MFA code above to complete account activation.
-          </p>
-
-          <div class="footer">
-            MedServe Oncology Network &bull; Lagos (MLCC) &bull; Kano (MKDC) &bull; Umuahia (MUDC)
-          </div>
+        <!-- Hidden anti-threading discriminator preventing Gmail from collapsing or trimming buttons -->
+        <div style="display:none;font-size:1px;color:#f8fafc;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;mso-hide:all;">
+          MedServe Staff Security Token: ${uniqueToken}
         </div>
+
+        <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
+          <tr>
+            <td align="center">
+              <div class="card">
+                <div class="badge">MedServe Clinician & Staff Hub</div>
+                <h1 class="title">Staff Account Invitation</h1>
+                <p class="subtitle">Hello ${firstName}, you have been enrolled as a clinical staff member on the MedServe Oncology Network.</p>
+                
+                <table class="info-table" role="presentation">
+                  <tr>
+                    <td>Assigned Role</td>
+                    <td>${role}</td>
+                  </tr>
+                  <tr>
+                    <td>Clinical Facility</td>
+                    <td>${centreName}</td>
+                  </tr>
+                  <tr>
+                    <td>Account Email</td>
+                    <td>${to}</td>
+                  </tr>
+                </table>
+
+                <div class="mfa-box">
+                  <div style="font-size: 12px; color: #64748b; margin-bottom: 6px; text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px;">Your One-Time MFA Enrollment Code</div>
+                  <div class="mfa-code">${mfaCode}</div>
+                </div>
+
+                <!-- Primary Action Button with table wrapper for email client compatibility -->
+                <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="margin: 20px 0 10px;">
+                  <tr>
+                    <td align="center">
+                      <a href="${activationLink}" class="btn" style="display: block; text-align: center; background-color: #0f172a; color: #ffffff !important; font-weight: 600; font-size: 14px; padding: 14px 24px; border-radius: 10px; text-decoration: none;">
+                        Activate Account & Set Password
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+
+                <p style="font-size: 12px; color: #64748b; text-align: center; margin: 12px 0 0 0;">
+                  Click the button above to set your password and confirm your MFA enrollment code.
+                </p>
+
+                <div class="footer">
+                  MedServe Oncology Network &bull; Lagos (MLCC) &bull; Kano (MKDC) &bull; Umuahia (MUDC)
+                </div>
+              </div>
+            </td>
+          </tr>
+        </table>
       </body>
     </html>
   `;
@@ -174,7 +196,7 @@ export async function sendStaffInviteEmail(
     const { error } = await resend.emails.send({
       from: `MedServe Health <${resendFromEmail}>`,
       to: [to],
-      subject: `MedServe Staff Invitation - Activate your ${role} account`,
+      subject: `MedServe Staff Invitation - Activate your ${role} account [Ref: #${mfaCode.replace("MFA-", "")}]`,
       html,
     });
 

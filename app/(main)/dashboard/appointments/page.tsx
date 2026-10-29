@@ -13,7 +13,6 @@ import { useCentreScope } from "@/shared/context/centre-scope-context";
 import { getLiveAppointmentsByCentre, type ClinicalAppointmentRow } from "@/server/appointments";
 
 import { AppointmentsTable } from "./_components/appointments-table";
-import { NewAppointmentDialog } from "./_components/new-appointment-dialog";
 
 export default function AppointmentsPage() {
   const { selectedCentre } = useCentreScope();
@@ -61,13 +60,9 @@ export default function AppointmentsPage() {
     (a) => a.status === "SCHEDULED" || a.status === "REQUESTED"
   ).length;
 
-  const handleCreated = () => {
-    refreshAppointments();
-  };
-
   return (
     <div className="@container/main flex flex-col gap-5 md:gap-6">
-      {/* Page Title & Booking Action Header */}
+      {/* Page Title Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">
@@ -78,10 +73,6 @@ export default function AppointmentsPage() {
               ? "Coordinate daily clinical appointments, patient check-ins, and schedule capacity across Lagos (MLCC), Kano (MKDC), and Umuahia (MUDC)."
               : `Coordinate daily clinical appointments, patient check-ins, and schedule capacity for ${selectedCentre.name} (${selectedCentre.city}).`}
           </p>
-        </div>
-
-        <div className="flex items-center gap-2.5">
-          <NewAppointmentDialog onCreated={handleCreated} />
         </div>
       </div>
 

@@ -213,15 +213,15 @@ model Patient {
   phone            String?   @unique // E.164 normalised
   fullName         String
   email            String?   @unique
-  gender           String?   @default("Female")
-  age              Int?      @default(45)
+  gender           String?
+  age              Int?
   address          String?
-  state            String?   @default("Lagos State")
-  centreCode       String?   @default("MLCC")
-  centreName       String?   @default("MedServe LUTH Cancer Centre")
-  primaryDiagnosis String?   @default("General Clinical Record")
-  primaryService   String?   @default("Outpatient Care")
-  doctorInCharge   String?   @default("Attending Oncologist")
+  state            String?
+  centreCode       String?
+  centreName       String?
+  primaryDiagnosis String?
+  primaryService   String?
+  doctorInCharge   String?
   status           String?   @default("ACTIVE")
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt

@@ -39,9 +39,9 @@ export function PatientsTable({ data }: PatientsTableProps) {
         (p) =>
           p.fullName.toLowerCase().includes(q) ||
           p.mrn.toLowerCase().includes(q) ||
-          p.phone.includes(q) ||
-          p.email.toLowerCase().includes(q) ||
-          p.state.toLowerCase().includes(q),
+          (p.phone ? p.phone.includes(q) : false) ||
+          (p.email ? p.email.toLowerCase().includes(q) : false) ||
+          (p.state ? p.state.toLowerCase().includes(q) : false),
       );
     }
 
@@ -194,22 +194,24 @@ export function PatientsTable({ data }: PatientsTableProps) {
 
                   {/* 3. Gender & Age */}
                   <TableCell className="text-sm text-muted-foreground py-3.5">
-                    {patient.gender}, {patient.age}y
+                    {patient.gender && patient.age
+                      ? `${patient.gender}, ${patient.age}y`
+                      : patient.gender || (patient.age ? `${patient.age}y` : "—")}
                   </TableCell>
 
                   {/* 4. Phone Number (own column) */}
                   <TableCell className="text-sm font-mono text-foreground py-3.5">
-                    {patient.phone}
+                    {patient.phone || "—"}
                   </TableCell>
 
                   {/* 5. Email (own column) */}
                   <TableCell className="text-sm text-muted-foreground py-3.5">
-                    {patient.email}
+                    {patient.email || "—"}
                   </TableCell>
 
                   {/* 6. Location (own column) */}
                   <TableCell className="text-sm text-muted-foreground py-3.5">
-                    {patient.state}
+                    {patient.state || "—"}
                   </TableCell>
 
                   {/* 7. Date Registered */}

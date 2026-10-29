@@ -183,21 +183,25 @@ export function PatientDetailClient({ initialPatient }: PatientDetailClientProps
           </div>
 
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-            <span className="font-medium text-foreground">{patient.gender}, {patient.age} years</span>
+            <span className="font-medium text-foreground">
+              {patient.gender && patient.age
+                ? `${patient.gender}, ${patient.age} years`
+                : patient.gender || (patient.age ? `${patient.age} years` : "Unspecified Demographics")}
+            </span>
             <span>•</span>
             <span className="flex items-center gap-1">
               <Phone className="size-3" />
-              {patient.phone}
+              {patient.phone || "—"}
             </span>
             <span>•</span>
             <span className="flex items-center gap-1">
               <Mail className="size-3" />
-              {patient.email}
+              {patient.email || "—"}
             </span>
             <span>•</span>
             <span className="flex items-center gap-1">
               <MapPin className="size-3" />
-              {patient.state}
+              {patient.state || "—"}
             </span>
           </div>
         </div>

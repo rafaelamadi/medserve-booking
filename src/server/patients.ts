@@ -2,6 +2,7 @@
 
 import { prisma } from "@/shared/api/prisma";
 import type { RegisteredPatient, PatientVisitHistory, PatientCommLog } from "@/entities/patient";
+import { setPatientSession } from "@/shared/lib/patientCookie";
 
 export interface RegisterPatientInput {
   fullName: string;
@@ -117,12 +118,12 @@ export async function getLivePatients(centreCode?: string): Promise<RegisteredPa
         id: p.id,
         mrn,
         fullName: p.fullName,
-        gender: (p.gender as "Male" | "Female") || "Female",
-        age: p.age ?? 45,
+        gender: p.gender || undefined,
+        age: p.age ?? undefined,
         phone: p.phone || "",
-        email: p.email || `${p.fullName.toLowerCase().replace(/\s+/g, ".")}@example.com`,
-        address: p.address || "Residential Address",
-        state: p.state || "Lagos State",
+        email: p.email || "",
+        address: p.address || undefined,
+        state: p.state || undefined,
         centreCode: (p.centreCode as "MLCC" | "MKDC" | "MUDC") || "MLCC",
         centreName: p.centreName || "MedServe LUTH Cancer Centre",
         primaryDiagnosis: p.primaryDiagnosis || "General Clinical Record",
@@ -191,10 +192,10 @@ export async function registerPatientServer(
           fullName: trimmedName,
           phone: trimmedPhone,
           email: trimmedEmail || existing.email,
-          gender: input.gender || existing.gender || "Female",
-          age: input.age || existing.age || 45,
-          address: input.address?.trim() || existing.address || "Residential Address",
-          state: input.state || existing.state || "Lagos State",
+          gender: input.gender || existing.gender || null,
+          age: input.age ?? existing.age ?? null,
+          address: input.address?.trim() || existing.address || null,
+          state: input.state || existing.state || null,
           centreCode: input.centreCode || existing.centreCode || "MLCC",
           centreName: input.centreName || existing.centreName || "MedServe LUTH Cancer Centre",
           primaryDiagnosis: input.primaryDiagnosis || existing.primaryDiagnosis || "General Clinical Record",
@@ -223,10 +224,10 @@ export async function registerPatientServer(
           phone: trimmedPhone,
           email: trimmedEmail,
           mrn,
-          gender: input.gender || "Female",
-          age: input.age || 45,
-          address: input.address?.trim() || "Residential Address",
-          state: input.state || "Lagos State",
+          gender: input.gender || null,
+          age: input.age ?? null,
+          address: input.address?.trim() || null,
+          state: input.state || null,
           centreCode: input.centreCode || "MLCC",
           centreName: input.centreName || "MedServe LUTH Cancer Centre",
           primaryDiagnosis: input.primaryDiagnosis || "General Clinical Record",
@@ -256,12 +257,12 @@ export async function registerPatientServer(
       id: dbPatient.id,
       mrn: assignedMrn,
       fullName: dbPatient.fullName,
-      gender: (dbPatient.gender as "Male" | "Female") || "Female",
-      age: dbPatient.age ?? 45,
+      gender: dbPatient.gender || undefined,
+      age: dbPatient.age ?? undefined,
       phone: dbPatient.phone || "",
-      email: dbPatient.email || `${dbPatient.fullName.toLowerCase().replace(/\s+/g, ".")}@example.com`,
-      address: dbPatient.address || "Residential Address",
-      state: dbPatient.state || "Lagos State",
+      email: dbPatient.email || "",
+      address: dbPatient.address || undefined,
+      state: dbPatient.state || undefined,
       centreCode: (dbPatient.centreCode as "MLCC" | "MKDC" | "MUDC") || "MLCC",
       centreName: dbPatient.centreName || "MedServe LUTH Cancer Centre",
       primaryDiagnosis: dbPatient.primaryDiagnosis || "General Clinical Record",
@@ -495,12 +496,12 @@ export async function getLivePatientById(idOrMrn: string): Promise<RegisteredPat
       id: p.id,
       mrn,
       fullName: p.fullName,
-      gender: (p.gender as "Male" | "Female") || "Female",
-      age: p.age ?? 45,
+      gender: p.gender || undefined,
+      age: p.age ?? undefined,
       phone: p.phone || "",
-      email: p.email || `${p.fullName.toLowerCase().replace(/\s+/g, ".")}@example.com`,
-      address: p.address || "Residential Address",
-      state: p.state || "Lagos State",
+      email: p.email || "",
+      address: p.address || undefined,
+      state: p.state || undefined,
       centreCode: (p.centreCode as "MLCC" | "MKDC" | "MUDC") || "MLCC",
       centreName: p.centreName || "MedServe LUTH Cancer Centre",
       primaryDiagnosis: p.primaryDiagnosis || "General Clinical Record",
@@ -589,3 +590,183 @@ export async function sendPatientEmailNoticeServer(
     return { success: false, error: "Failed to dispatch email notice to database." };
   }
 }
+
+export interface CompletePatientOnboardingInput {
+  email: string;
+  fullName: string;
+  phone: string;
+  gender?: "Male" | "Female";
+  age?: number;
+  state?: string;
+  address?: string;
+}
+
+/**
+ * Completes patient intake onboarding directly in Supabase.
+ * Updates or creates the patient record with clinical demographics, assigns an MRN,
+ * updates the authenticated session cookie, and returns the registered patient entity.
+ */
+export async function completePatientOnboardingServer(
+  input: CompletePatientOnboardingInput
+): Promise<{ success: boolean; patient?: RegisteredPatient; error?: string }> {
+  try {
+    const trimmedEmail = input.email.trim().toLowerCase();
+    const trimmedName = input.fullName.trim();
+    const trimmedPhone = input.phone.trim();
+
+    if (!trimmedEmail) {
+      return { success: false, error: "Email address is required." };
+    }
+    if (!trimmedName) {
+      return { success: false, error: "Full legal name is required." };
+    }
+    if (!trimmedPhone) {
+      return { success: false, error: "Phone number is required." };
+    }
+
+    const mrn = `MS-${Math.floor(100000 + Math.random() * 900000)}`;
+
+    const existing = await prisma.patient.findUnique({
+      where: { email: trimmedEmail },
+    });
+
+    const dbPatient = existing
+      ? await prisma.patient.update({
+          where: { id: existing.id },
+          data: {
+            fullName: trimmedName,
+            phone: trimmedPhone,
+            mrn: existing.mrn || mrn,
+            gender: input.gender || null,
+            age: input.age ?? null,
+            state: input.state || null,
+            address: input.address?.trim() || null,
+            centreCode: existing.centreCode || "MLCC",
+            centreName: existing.centreName || "MedServe Medical Centre",
+            primaryDiagnosis: existing.primaryDiagnosis || "General Clinical Record",
+            primaryService: existing.primaryService || "Outpatient Care",
+            status: "ACTIVE",
+          },
+          include: {
+            appointments: {
+              include: {
+                centre: true,
+                centreService: {
+                  include: {
+                    service: true,
+                  },
+                },
+                resource: true,
+              },
+            },
+          },
+        })
+      : await prisma.patient.create({
+          data: {
+            email: trimmedEmail,
+            fullName: trimmedName,
+            phone: trimmedPhone,
+            mrn,
+            gender: input.gender || null,
+            age: input.age ?? null,
+            state: input.state || null,
+            address: input.address?.trim() || null,
+            centreCode: "MLCC",
+            centreName: "MedServe Medical Centre",
+            primaryDiagnosis: "General Clinical Record",
+            primaryService: "Outpatient Care",
+            status: "ACTIVE",
+          },
+          include: {
+            appointments: {
+              include: {
+                centre: true,
+                centreService: {
+                  include: {
+                    service: true,
+                  },
+                },
+                resource: true,
+              },
+            },
+          },
+        });
+
+    // Seal / update session cookie with real patient details
+    try {
+      await setPatientSession({
+        patientId: dbPatient.id,
+        email: trimmedEmail,
+        name: trimmedName,
+        phone: trimmedPhone,
+      });
+    } catch {
+      // In non-standard or test runner environments
+    }
+
+    const assignedMrn = dbPatient.mrn || mrn;
+
+    const registeredPatient: RegisteredPatient = {
+      id: dbPatient.id,
+      mrn: assignedMrn,
+      fullName: dbPatient.fullName,
+      gender: dbPatient.gender || undefined,
+      age: dbPatient.age ?? undefined,
+      phone: dbPatient.phone || "",
+      email: dbPatient.email || "",
+      address: dbPatient.address || undefined,
+      state: dbPatient.state || undefined,
+      centreCode: (dbPatient.centreCode as "MLCC" | "MKDC" | "MUDC") || "MLCC",
+      centreName: dbPatient.centreName || "MedServe Medical Centre",
+      primaryDiagnosis: dbPatient.primaryDiagnosis || "General Clinical Record",
+      primaryService: dbPatient.primaryService || "Outpatient Care",
+      doctorInCharge: (dbPatient as any).doctorInCharge || "Dr. Kachi",
+      status: (dbPatient.status as any) || "ACTIVE",
+      registrationDate: dbPatient.createdAt.toISOString().slice(0, 10),
+      totalVisits: dbPatient.appointments.length,
+      completedVisits: 0,
+      remainingVisits: dbPatient.appointments.length,
+      visits: [],
+      commLogs: [
+        {
+          id: `cl-${dbPatient.id}`,
+          timestamp: dbPatient.createdAt.toISOString().replace("T", " ").slice(0, 16),
+          channel: "EMAIL",
+          type: "CHECK_IN_CONFIRM",
+          recipient: dbPatient.email || `${dbPatient.fullName.toLowerCase().replace(/\s+/g, ".")}@example.com`,
+          status: "DELIVERED",
+          messageSnippet: `Welcome to MedServe, ${dbPatient.fullName}. Your Patient Record Number is ${assignedMrn}.`,
+        },
+      ],
+    };
+
+    return { success: true, patient: registeredPatient };
+  } catch (err) {
+    console.error("Error completing patient onboarding in Supabase:", err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to complete patient registration.",
+    };
+  }
+}
+
+/**
+ * Fetch live patient profile from Supabase using their authenticated email address.
+ */
+export async function getLivePatientByEmailServer(
+  email: string
+): Promise<RegisteredPatient | null> {
+  try {
+    const trimmed = email.trim().toLowerCase();
+    const patient = await prisma.patient.findUnique({
+      where: { email: trimmed },
+      select: { id: true },
+    });
+    if (!patient) return null;
+    return getLivePatientById(patient.id);
+  } catch (err) {
+    console.error("Error fetching live patient by email:", err);
+    return null;
+  }
+}
+
