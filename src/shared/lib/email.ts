@@ -193,3 +193,123 @@ export async function sendStaffInviteEmail(
   }
 }
 
+export interface AppointmentConfirmationEmailParams {
+  to: string;
+  patientName: string;
+  reference: string;
+  centreName: string;
+  centreAddress?: string;
+  serviceName: string;
+  date: string;
+  timeSlot: string;
+}
+
+/**
+ * Sends a branded appointment confirmation email to the patient with booking reference and centre details.
+ */
+export async function sendAppointmentConfirmationEmail(
+  params: AppointmentConfirmationEmailParams
+): Promise<{ success: boolean; simulated?: boolean; error?: string }> {
+  const { to, patientName, reference, centreName, centreAddress, serviceName, date, timeSlot } = params;
+  const firstName = patientName.split(" ")[0] || "Patient";
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 24px; color: #1e293b; }
+          .card { background-color: #ffffff; max-width: 540px; margin: 0 auto; border-radius: 16px; border: 1px solid #e2e8f0; padding: 36px 32px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
+          .badge { display: inline-block; padding: 6px 14px; background-color: #ecfdf5; color: #047857; font-size: 13px; font-weight: 600; border-radius: 9999px; margin-bottom: 12px; }
+          .title { font-size: 22px; font-weight: 700; color: #0f172a; margin: 0 0 8px 0; }
+          .subtitle { font-size: 14px; color: #64748b; line-height: 1.5; margin: 0; }
+          .ref-box { background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border-radius: 12px; padding: 18px; margin: 24px 0; text-align: center; border: 1px solid #bbf7d0; }
+          .ref-label { font-size: 11px; text-transform: uppercase; font-weight: 700; letter-spacing: 1px; color: #15803d; margin-bottom: 4px; }
+          .ref-code { font-family: monospace; font-size: 26px; font-weight: 700; letter-spacing: 4px; color: #14532d; }
+          .info-table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 14px; }
+          .info-table td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; }
+          .info-table td:first-child { color: #64748b; font-weight: 500; width: 38%; }
+          .info-table td:last-child { color: #0f172a; font-weight: 600; }
+          .notice { font-size: 12px; color: #64748b; background-color: #f8fafc; border-left: 3px solid #0f172a; padding: 12px 14px; border-radius: 4px; margin-top: 20px; line-height: 1.5; }
+          .footer { text-align: center; font-size: 12px; color: #94a3b8; margin-top: 28px; border-top: 1px solid #f1f5f9; padding-top: 18px; }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <div class="badge">MedServe Appointment Confirmation</div>
+          <h1 class="title">Your Appointment is Confirmed</h1>
+          <p class="subtitle">Hello ${firstName}, your clinical appointment has been scheduled at MedServe. Please find your visit details below:</p>
+          
+          <div class="ref-box">
+            <div class="ref-label">Booking Reference Code</div>
+            <div class="ref-code">${reference}</div>
+          </div>
+
+          <table class="info-table">
+            <tr>
+              <td>Patient Name</td>
+              <td>${patientName}</td>
+            </tr>
+            <tr>
+              <td>Clinical Centre</td>
+              <td>${centreName}</td>
+            </tr>
+            <tr>
+              <td>Service</td>
+              <td>${serviceName}</td>
+            </tr>
+            <tr>
+              <td>Date</td>
+              <td>${date}</td>
+            </tr>
+            <tr>
+              <td>Scheduled Time</td>
+              <td>${timeSlot}</td>
+            </tr>
+            ${centreAddress ? `<tr><td>Address</td><td>${centreAddress}</td></tr>` : ""}
+          </table>
+
+          <div class="notice">
+            <strong>Arrival Reminder:</strong> Please present your booking reference <strong>${reference}</strong> at the front desk 15 minutes before your scheduled appointment time.
+          </div>
+
+          <div class="footer">
+            MedServe Oncology Network &bull; Lagos (MLCC) &bull; Kano (MKDC) &bull; Umuahia (MUDC)
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+
+  if (!resend) {
+    console.log(
+      `\n=========================================\n[MedServe Booking DEV] Simulated Confirmation Email to: ${to}\nPatient: ${patientName} | Ref: ${reference}\nDate: ${date} ${timeSlot} | Centre: ${centreName}\n=========================================\n`,
+    );
+    return { success: true, simulated: true };
+  }
+
+  try {
+    const { error } = await resend.emails.send({
+      from: `MedServe Health <${resendFromEmail}>`,
+      to: [to],
+      subject: `Appointment Confirmed: ${reference} - ${serviceName} at MedServe`,
+      html,
+    });
+
+    if (error) {
+      console.error("[MedServe Booking] Resend error:", error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (err) {
+    console.error("[MedServe Booking] Failed to send email:", err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to send email",
+    };
+  }
+}
+
+

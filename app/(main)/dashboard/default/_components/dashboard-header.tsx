@@ -24,6 +24,7 @@ export function DashboardHeader() {
 
       <div className="flex items-center gap-2">
         <NewAppointmentDialog
+          defaultCentreCode={isAll ? undefined : (selectedCentre.code as "MLCC" | "MKDC" | "MUDC")}
           trigger={
             <Button size="default" className="h-10 px-4 text-sm font-semibold shadow-sm gap-2 cursor-pointer">
               <Plus className="size-4" />

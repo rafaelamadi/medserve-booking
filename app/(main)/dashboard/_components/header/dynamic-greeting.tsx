@@ -2,10 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
-import { rootUser } from "@/entities/staff-user/model/users";
 
 export function DynamicGreeting() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const [greeting, setGreeting] = useState("Good morning");
   const [mounted, setMounted] = useState(false);
 
@@ -28,7 +27,16 @@ export function DynamicGreeting() {
     return () => clearInterval(timer);
   }, []);
 
-  const userName = session?.user?.name || rootUser.name;
+  if (status === "loading" || !mounted) {
+    return (
+      <div className="flex items-center gap-1.5 text-xs sm:text-sm tracking-tight select-none">
+        <span className="text-muted-foreground font-medium">{greeting},</span>
+        <span className="h-4 w-28 bg-muted animate-pulse rounded inline-block" />
+      </div>
+    );
+  }
+
+  const userName = session?.user?.name || "Staff Member";
 
   return (
     <div className="flex items-center gap-1.5 text-xs sm:text-sm tracking-tight select-none">

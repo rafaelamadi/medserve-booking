@@ -1,6 +1,10 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
+import { generateReference } from "@/entities/appointment";
 import { prisma } from "@/shared/api/prisma";
+import { localToUtc } from "@/shared/lib/dates";
+import { sendAppointmentConfirmationEmail } from "@/shared/lib/email";
 
 export type ClinicalAppointmentRow = {
   id: string;
@@ -169,3 +173,186 @@ export async function updateAppointmentStatusServer(
     return { ok: false, error: "Database update failed" };
   }
 }
+
+export type CreateStaffAppointmentInput = {
+  patientName: string;
+  patientPhone: string;
+  patientEmail?: string;
+  patientMrn?: string;
+  centreCode: "MLCC" | "MKDC" | "MUDC";
+  serviceName: string;
+  date: string; // YYYY-MM-DD
+  timeSlot: string; // e.g. "02:00 PM"
+  notes?: string;
+};
+
+export type CreateStaffAppointmentResult = {
+  ok: boolean;
+  reference?: string;
+  appointmentId?: string;
+  error?: string;
+};
+
+/**
+ * Creates an appointment directly in Supabase from the staff dashboard,
+ * creates/updates the patient record, dispatches a confirmation email if email is provided,
+ * and revalidates dashboard cache.
+ */
+export async function createStaffAppointmentServer(
+  input: CreateStaffAppointmentInput
+): Promise<CreateStaffAppointmentResult> {
+  try {
+    const centre = await prisma.centre.findUnique({
+      where: { code: input.centreCode },
+      include: {
+        centreServices: {
+          include: { service: true },
+        },
+      },
+    });
+
+    if (!centre) {
+      return { ok: false, error: `Centre '${input.centreCode}' not found.` };
+    }
+
+    // Match service by name or slug
+    let cs = centre.centreServices.find(
+      (item) => item.service.name.toLowerCase() === input.serviceName.toLowerCase()
+    );
+    if (!cs) {
+      cs = centre.centreServices.find(
+        (item) => item.service.slug.toLowerCase() === input.serviceName.toLowerCase().replace(/\s+/g, "-")
+      );
+    }
+    if (!cs && centre.centreServices.length > 0) {
+      cs = centre.centreServices[0];
+    }
+    if (!cs) {
+      return { ok: false, error: "No clinical service configured for this centre." };
+    }
+
+    // Calculate startsAt and endsAt in centre timezone
+    let minutes = 14 * 60; // default 02:00 PM = 840 min
+    const cleanTime = (input.timeSlot || "02:00 PM").trim().toUpperCase();
+    const isPM = cleanTime.includes("PM");
+    const isAM = cleanTime.includes("AM");
+    const digits = cleanTime.replace(/[^\d:]/g, "");
+    const [hStr, mStr] = digits.split(":");
+    if (hStr) {
+      let h = parseInt(hStr, 10);
+      const m = mStr ? parseInt(mStr, 10) : 0;
+      if (isPM && h < 12) h += 12;
+      if (isAM && h === 12) h = 0;
+      if (!isNaN(h)) {
+        minutes = h * 60 + (isNaN(m) ? 0 : m);
+      }
+    }
+
+    const startsAt = localToUtc(input.date, minutes, centre.timezone || "Africa/Lagos");
+    const slotMinutes = cs.slotMinutes || 30;
+    const endsAt = new Date(startsAt.getTime() + slotMinutes * 60 * 1000);
+
+    const cleanEmail = input.patientEmail?.trim() || null;
+    const cleanPhone = input.patientPhone?.trim() || null;
+    const cleanName = input.patientName.trim();
+    const cleanMrn = input.patientMrn?.trim() || null;
+
+    // Find existing patient by email, phone, or MRN
+    let patient = null;
+    if (cleanEmail) {
+      patient = await prisma.patient.findFirst({
+        where: { email: cleanEmail },
+      });
+    }
+    if (!patient && cleanPhone) {
+      patient = await prisma.patient.findFirst({
+        where: { phone: cleanPhone },
+      });
+    }
+    if (!patient && cleanMrn) {
+      patient = await prisma.patient.findFirst({
+        where: { mrn: cleanMrn },
+      });
+    }
+
+    if (!patient) {
+      const generatedMrn = cleanMrn || `MS-${Math.floor(100000 + Math.random() * 900000)}`;
+      patient = await prisma.patient.create({
+        data: {
+          fullName: cleanName,
+          phone: cleanPhone,
+          email: cleanEmail,
+          mrn: generatedMrn,
+          centreCode: centre.code,
+          centreName: centre.name,
+          primaryService: cs.service.name,
+          primaryDiagnosis: input.notes || "Clinical Appointment",
+          doctorInCharge: "Dr. Kachi",
+          status: "ACTIVE",
+        },
+      });
+    } else {
+      const updates: Record<string, string> = {};
+      if (cleanEmail && !patient.email) updates.email = cleanEmail;
+      if (cleanPhone && !patient.phone) updates.phone = cleanPhone;
+      if (cleanMrn && !patient.mrn) updates.mrn = cleanMrn;
+      if (Object.keys(updates).length > 0) {
+        patient = await prisma.patient.update({
+          where: { id: patient.id },
+          data: updates,
+        });
+      }
+    }
+
+    const reference = generateReference(centre.code);
+
+    const appointment = await prisma.appointment.create({
+      data: {
+        reference,
+        patientId: patient.id,
+        centreId: centre.id,
+        centreServiceId: cs.id,
+        resourceId: cs.resourceId || null,
+        startsAt,
+        endsAt,
+        requestedStartsAt: startsAt,
+        status: "REQUESTED", // REQUESTED maps to SCHEDULED in UI
+        source: "STAFF",
+        patientNote: input.notes?.trim() || undefined,
+      },
+    });
+
+    // Send confirmation email asynchronously if email was provided
+    if (cleanEmail) {
+      sendAppointmentConfirmationEmail({
+        to: cleanEmail,
+        patientName: cleanName,
+        reference,
+        centreName: centre.name,
+        centreAddress: centre.address || undefined,
+        serviceName: cs.service.name,
+        date: input.date,
+        timeSlot: input.timeSlot,
+      }).catch((err) => {
+        console.error("Async appointment confirmation email error:", err);
+      });
+    }
+
+    revalidatePath("/dashboard/default");
+    revalidatePath("/dashboard/appointments");
+    revalidatePath("/dashboard/calendar");
+
+    return {
+      ok: true,
+      reference,
+      appointmentId: appointment.id,
+    };
+  } catch (err) {
+    console.error("createStaffAppointmentServer error:", err);
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : "Failed to create appointment in database",
+    };
+  }
+}
+

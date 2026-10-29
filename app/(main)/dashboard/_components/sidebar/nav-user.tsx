@@ -29,7 +29,23 @@ export function NavUser({
 }) {
   const router = useRouter();
   const { isMobile } = useSidebar();
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
+
+  if (status === "loading") {
+    return (
+      <SidebarMenu>
+        <SidebarMenuItem>
+          <div className="flex items-center gap-2.5 px-2 py-1.5">
+            <div className="h-8 w-8 rounded-lg bg-sidebar-accent/70 animate-pulse shrink-0" />
+            <div className="grid flex-1 gap-1.5">
+              <div className="h-3 w-24 bg-sidebar-accent/70 animate-pulse rounded" />
+              <div className="h-2.5 w-32 bg-sidebar-accent/40 animate-pulse rounded" />
+            </div>
+          </div>
+        </SidebarMenuItem>
+      </SidebarMenu>
+    );
+  }
 
   const activeUser = session?.user
     ? {
