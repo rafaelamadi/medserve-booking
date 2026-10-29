@@ -4,15 +4,12 @@ import * as React from "react";
 import Link from "next/link";
 import {
   Activity,
-  CalendarCheck,
   CalendarPlus,
   Clock,
-  Headphones,
   Mail,
   MapPin,
   Phone,
   Printer,
-  Stethoscope,
 } from "lucide-react";
 
 import {
@@ -295,71 +292,6 @@ export function PatientHomeContent({ initialPatient }: { initialPatient?: Regist
           setSlipOpen(true);
         }}
       />
-
-      {/* 4. Quick Access Grid: Manage Appointments & Care Support */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Manage Appointments Card */}
-        <div className="p-6 rounded-2xl border bg-card space-y-4 flex flex-col justify-between">
-          <div className="space-y-2">
-            <div className="size-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold">
-              <CalendarCheck className="size-5" />
-            </div>
-            <h3 className="text-lg font-bold text-foreground">Manage Appointments</h3>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              Access your full multi-week treatment calendar, view verified encounter history and clinical notes, or book an appointment.
-            </p>
-          </div>
-
-          <div className="pt-2 flex gap-2">
-            <Button asChild size="default" className="flex-1 gap-2 text-xs font-semibold h-9">
-              <Link href="/dashboard/portal/appointments">
-                <CalendarCheck className="size-4" />
-                Manage Appointments
-              </Link>
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="default"
-              className="gap-1.5 text-xs font-semibold h-9"
-              onClick={() => setBookingOpen(true)}
-            >
-              <CalendarPlus className="size-3.5" />
-              Book
-            </Button>
-          </div>
-        </div>
-
-        {/* Care Team & Helpline Card */}
-        <div className="p-6 rounded-2xl border bg-card space-y-4 flex flex-col justify-between">
-          <div className="space-y-2">
-            <div className="size-10 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold">
-              <Stethoscope className="size-5" />
-            </div>
-            <h3 className="text-lg font-bold text-foreground">Care Team & Support</h3>
-            <div className="space-y-1 text-xs text-muted-foreground">
-              <p>Centre: <strong className="text-foreground">{activePatient.centreName || "MedServe Oncology Network"}</strong></p>
-              <p>Care Team: <strong className="text-foreground">Clinical Oncology & Nursing Team</strong></p>
-              <p>Hotline: <strong className="text-foreground font-mono">+234 (01) 888 0300</strong> (Mon - Fri, 8am - 5pm)</p>
-            </div>
-          </div>
-
-          <div className="pt-2 flex gap-2">
-            <Button asChild variant="outline" size="default" className="flex-1 gap-2 text-xs font-medium h-9">
-              <Link href="/dashboard/portal/support">
-                <Headphones className="size-3.5 text-primary" />
-                Centre Directory
-              </Link>
-            </Button>
-            <Button asChild variant="outline" size="default" className="flex-1 gap-2 text-xs font-medium h-9">
-              <a href="tel:+23418880300">
-                <Phone className="size-3.5 text-emerald-600 dark:text-emerald-400" />
-                Call Desk
-              </a>
-            </Button>
-          </div>
-        </div>
-      </div>
 
       {/* Printable Appointment Pass Dialog */}
       <Dialog open={slipOpen} onOpenChange={setSlipOpen}>

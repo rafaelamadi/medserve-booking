@@ -524,25 +524,6 @@ export function TreatmentCalendar({ schedule, onOpenPass }: TreatmentCalendarPro
               );
             })}
           </div>
-
-          {/* Month with zero sessions notice banner */}
-          {currentMonthVisits.length === 0 && (
-            <div className="p-4 rounded-xl border border-dashed bg-muted/15 text-center flex flex-col sm:flex-row items-center justify-between gap-3">
-              <span className="text-xs text-muted-foreground">
-                No scheduled chemotherapy sessions in {format(currentDate, "MMMM yyyy")}. Active course runs across October & November 2026.
-              </span>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-7 text-xs font-semibold gap-1.5 shrink-0"
-                onClick={handleToday}
-              >
-                <CalendarIcon className="size-3 text-primary" />
-                Jump to Active Sessions (Oct 2026)
-              </Button>
-            </div>
-          )}
         </div>
       )}
 

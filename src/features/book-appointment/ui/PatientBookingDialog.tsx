@@ -40,6 +40,7 @@ import {
   type RegisteredPatient,
 } from "@/entities/patient";
 import type { PatientVisit } from "@/shared/types";
+import { createStaffAppointmentServer } from "@/server/appointments";
 
 interface PatientBookingDialogProps {
   open: boolean;
@@ -155,13 +156,33 @@ export function PatientBookingDialog({
     setStep(5);
   };
 
-  const handleFinalSubmit = () => {
+  const handleFinalSubmit = async () => {
     if (!selectedService) return;
 
     setIsSubmitting(true);
 
-    const refNum = Math.floor(100 + Math.random() * 900);
-    const reference = `${selectedCentre.code}-2610-${refNum}`;
+    let reference = `${selectedCentre.code}-2610-${Math.floor(100 + Math.random() * 900)}`;
+
+    try {
+      const result = await createStaffAppointmentServer({
+        patientName: fullName,
+        patientPhone: phone,
+        patientEmail: email || undefined,
+        patientMrn: patient.mrn,
+        centreCode: (selectedCentre.code as "MLCC" | "MKDC" | "MUDC") || "MLCC",
+        serviceName: selectedService.name,
+        date: selectedDate,
+        timeSlot: selectedTime,
+        notes: notes || undefined,
+        source: "WEB",
+      });
+
+      if (result.ok && result.reference) {
+        reference = result.reference;
+      }
+    } catch (err) {
+      console.error("Failed to persist appointment to Supabase:", err);
+    }
 
     const newRecord: PublicBookingRecord = {
       reference,
@@ -197,18 +218,21 @@ export function PatientBookingDialog({
     saveBooking(newRecord);
     addCustomVisit(newVisit);
 
-    setTimeout(() => {
-      setIsSubmitting(false);
-      setConfirmedBooking(newRecord);
+    // Notify other components & staff queue in real time
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("medserve:appointment-sync"));
+    }
 
-      if (onBookingSuccess) {
-        onBookingSuccess(newRecord);
-      }
+    setIsSubmitting(false);
+    setConfirmedBooking(newRecord);
 
-      toast.success("Appointment Booked Successfully", {
-        description: `Booking #${reference} confirmed for ${selectedDate} at ${selectedTime}.`,
-      });
-    }, 700);
+    if (onBookingSuccess) {
+      onBookingSuccess(newRecord);
+    }
+
+    toast.success("Appointment Booked Successfully", {
+      description: `Booking #${reference} confirmed for ${selectedDate} at ${selectedTime}.`,
+    });
   };
 
   return (

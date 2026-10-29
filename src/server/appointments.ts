@@ -184,6 +184,7 @@ export type CreateStaffAppointmentInput = {
   date: string; // YYYY-MM-DD
   timeSlot: string; // e.g. "02:00 PM"
   notes?: string;
+  source?: "WEB" | "STAFF" | "CHAT";
 };
 
 export type CreateStaffAppointmentResult = {
@@ -317,7 +318,7 @@ export async function createStaffAppointmentServer(
         endsAt,
         requestedStartsAt: startsAt,
         status: "REQUESTED", // REQUESTED maps to SCHEDULED in UI
-        source: "STAFF",
+        source: input.source || "STAFF",
         patientNote: input.notes?.trim() || undefined,
       },
     });
@@ -341,6 +342,8 @@ export async function createStaffAppointmentServer(
     revalidatePath("/dashboard/default");
     revalidatePath("/dashboard/appointments");
     revalidatePath("/dashboard/calendar");
+    revalidatePath("/dashboard/portal");
+    revalidatePath("/dashboard/portal/appointments");
 
     return {
       ok: true,

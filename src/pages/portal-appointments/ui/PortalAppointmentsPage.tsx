@@ -6,7 +6,6 @@ import {
   Activity,
   AlertCircle,
   CalendarPlus,
-  CheckCircle2,
   Clock,
   Home,
   Phone,
@@ -177,6 +176,7 @@ function ManageAppointmentsContent({ initialPatient }: { initialPatient?: Regist
     const upcoming = allVisits.find((v) => v.status === "SCHEDULED" || v.status === "IN_TREATMENT") || allVisits[0];
     if (!upcoming) return null;
     return {
+      id: upcoming.id,
       date: upcoming.date,
       timeSlot: upcoming.timeSlot,
       service: upcoming.serviceName || activePatient.primaryService || "Clinical Session",
@@ -258,69 +258,35 @@ function ManageAppointmentsContent({ initialPatient }: { initialPatient?: Regist
         </div>
       </div>
 
-      {/* Immediate Next Session & Progress Summary Strip */}
+      {/* Immediate Next Session Strip */}
       {hasAppointments && nextVisit ? (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {/* Next Session Card */}
-          <div className="lg:col-span-2 p-5 rounded-2xl border border-primary/20 bg-primary/5 space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <span className="text-[11px] font-bold text-primary uppercase tracking-wider block">
-                  Next Confirmed Session
-                </span>
-                <h2 className="text-2xl font-extrabold text-foreground mt-0.5">
-                  {nextVisit.date} at {nextVisit.timeSlot}
-                </h2>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Session #{nextVisit.visitNumber || 1} of {totalSessions} · {nextVisit.service}
-                </p>
-              </div>
-
-              <Button
-                size="default"
-                className="h-9 px-4 gap-2 text-xs font-semibold shadow-xs shrink-0 self-start sm:self-auto"
-                onClick={() => handleOpenSlip()}
-              >
-                <Printer className="size-3.5" />
-                Print Pass
-              </Button>
+        <div className="p-5 rounded-2xl border border-primary/20 bg-primary/5 space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <span className="text-[11px] font-bold text-primary uppercase tracking-wider block">
+                Next Confirmed Session
+              </span>
+              <h2 className="text-2xl font-extrabold text-foreground mt-0.5">
+                {nextVisit.date} at {nextVisit.timeSlot}
+              </h2>
+              <p className="text-xs text-muted-foreground mt-1">
+                {nextVisit.visitNumber ? `Session #${nextVisit.visitNumber} · ` : ""}{nextVisit.service}
+              </p>
             </div>
 
-            <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2 border-t border-border/40">
-              <Clock className="size-3.5 text-primary" />
-              <span>Centre: {mergedSchedule.centreName}. Arrive 15 mins prior for check-in and vitals verification.</span>
-            </div>
+            <Button
+              size="default"
+              className="h-9 px-4 gap-2 text-xs font-semibold shadow-xs shrink-0 self-start sm:self-auto"
+              onClick={() => handleOpenSlip()}
+            >
+              <Printer className="size-3.5" />
+              Print Pass
+            </Button>
           </div>
 
-          {/* Progress Card */}
-          <div className="p-5 rounded-2xl border bg-card space-y-3 flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between text-xs mb-1">
-                <span className="font-bold text-foreground">Course Completion</span>
-                <span className="font-extrabold text-primary tabular-nums text-sm">{percentComplete}%</span>
-              </div>
-              <div className="h-2.5 w-full overflow-hidden rounded-full bg-secondary">
-                <div
-                  className="h-full rounded-full bg-primary transition-all duration-500"
-                  style={{ width: `${percentComplete}%` }}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1 text-xs text-muted-foreground">
-              <div className="flex justify-between">
-                <span>Delivered Sessions:</span>
-                <strong className="text-foreground font-semibold">{completedSessions} of {totalSessions}</strong>
-              </div>
-              <div className="flex justify-between">
-                <span>Remaining Sessions:</span>
-                <strong className="text-foreground font-semibold">{totalSessions - completedSessions}</strong>
-              </div>
-              <div className="flex justify-between">
-                <span>Target End Date:</span>
-                <strong className="text-foreground font-semibold">{mergedSchedule.projectedEndDate || "—"}</strong>
-              </div>
-            </div>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2 border-t border-border/40">
+            <Clock className="size-3.5 text-primary" />
+            <span>Centre: {mergedSchedule.centreName}. Arrive 15 mins prior for check-in and vitals verification.</span>
           </div>
         </div>
       ) : (
@@ -445,7 +411,7 @@ function ManageAppointmentsContent({ initialPatient }: { initialPatient?: Regist
             ) : (
               filteredVisits.map((visit) => {
               const isCompleted = visit.status === "COMPLETED";
-              const isNext = visit.status === "IN_TREATMENT" || visit.visitNumber === 15;
+              const isNext = visit.id === nextVisit?.id || visit.status === "IN_TREATMENT";
 
               return (
                 <div
@@ -455,22 +421,10 @@ function ManageAppointmentsContent({ initialPatient }: { initialPatient?: Regist
                   }`}
                 >
                   <div className="flex items-start sm:items-center gap-3.5">
-                    <div
-                      className={`size-10 rounded-xl flex items-center justify-center shrink-0 font-bold text-xs ${
-                        isCompleted
-                          ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20"
-                          : isNext
-                            ? "bg-primary text-primary-foreground shadow-sm"
-                            : "bg-muted text-muted-foreground"
-                      }`}
-                    >
-                      {isCompleted ? <CheckCircle2 className="size-5" /> : `#${visit.visitNumber}`}
-                    </div>
-
                     <div className="space-y-0.5">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-bold text-sm text-foreground">
-                          Chemotherapy #{visit.visitNumber}: {visit.serviceName}
+                          {visit.serviceName}
                         </span>
                         {isNext && (
                           <span className="bg-primary text-primary-foreground text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">

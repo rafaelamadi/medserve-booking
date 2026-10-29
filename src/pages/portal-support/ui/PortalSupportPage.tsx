@@ -11,7 +11,6 @@ import {
   Headphones,
   Mail,
   MapPin,
-  MessageSquare,
   Phone,
   Send,
   ShieldCheck,
@@ -92,12 +91,6 @@ export function PortalSupportContent({ initialPatient }: { initialPatient?: Regi
             <a href="tel:+23418880300">
               <Phone className="size-3.5" />
               Call Central Desk
-            </a>
-          </Button>
-          <Button asChild variant="outline" size="default" className="h-9 px-4 gap-2 text-xs font-semibold">
-            <a href="https://wa.me/23418880300" target="_blank" rel="noopener noreferrer">
-              <MessageSquare className="size-3.5 text-emerald-600 dark:text-emerald-400" />
-              WhatsApp Helpdesk
             </a>
           </Button>
         </div>

@@ -52,7 +52,7 @@ export function NavPatientUser() {
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-semibold text-foreground">{patient.fullName}</span>
                 <span className="text-muted-foreground truncate text-xs font-mono">
-                  {patient.mrn} · {patient.centreCode}
+                  {patient.mrn}
                 </span>
               </div>
               <EllipsisVertical className="ml-auto size-4 text-muted-foreground" />
@@ -79,11 +79,13 @@ export function NavPatientUser() {
                     </Badge>
                   </div>
                   <span className="text-muted-foreground truncate text-[11px] font-mono mt-0.5">
-                    {patient.mrn} · {patient.centreName}
+                    {patient.mrn}
                   </span>
-                  <span className="text-muted-foreground truncate text-[11px] mt-0.5">
-                    Dr: {patient.doctorInCharge}
-                  </span>
+                  {patient.doctorInCharge && (
+                    <span className="text-muted-foreground truncate text-[11px] mt-0.5">
+                      Dr: {patient.doctorInCharge}
+                    </span>
+                  )}
                 </div>
               </div>
             </DropdownMenuLabel>
