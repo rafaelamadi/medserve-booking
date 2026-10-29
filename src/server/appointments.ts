@@ -70,7 +70,7 @@ export async function getLiveAppointmentsByCentre(
         },
       },
       orderBy: {
-        startsAt: "asc",
+        createdAt: "desc",
       },
     });
 
