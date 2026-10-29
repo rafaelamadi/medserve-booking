@@ -26,6 +26,7 @@ import {
   PATIENT_SCHEDULES,
   type PatientCareSchedule,
   type PatientVisit,
+  type VisitStatus,
 } from "@/entities/care-series";
 import { usePatientPortalStore, type RegisteredPatient } from "@/entities/patient";
 import { TreatmentCalendar } from "@/widgets/treatment-calendar";
@@ -45,23 +46,71 @@ export function PatientHomeContent({ initialPatient }: { initialPatient?: Regist
 
   const activePatient = initialPatient || patient;
 
-  // Only find matching pre-existing schedule if patient actually has one in demo data, otherwise null
+  // Only find matching pre-existing schedule if patient is a demo patient (e.g. pat-01), otherwise null
   const baseSchedule: PatientCareSchedule | null = React.useMemo(() => {
     return (
       PATIENT_SCHEDULES.find(
         (s) =>
           s.patientId === activePatient.id ||
-          s.patientMrn === activePatient.mrn ||
-          s.reference === activePatient.scheduleRef,
+          s.patientMrn === activePatient.mrn,
       ) || null
     );
   }, [activePatient]);
 
+  // Live visits from Supabase via getLivePatientById
+  const liveVisits: PatientVisit[] = React.useMemo(() => {
+    if (!activePatient.visits || activePatient.visits.length === 0) return [];
+    return activePatient.visits.map((v, idx) => ({
+      id: v.id,
+      visitNumber: idx + 1,
+      date: v.date,
+      timeSlot: v.timeSlot,
+      serviceName: v.serviceName,
+      room: v.room,
+      status: (v.status === "COMPLETED"
+        ? "COMPLETED"
+        : v.status === "IN_TREATMENT" || v.status === "CHECKED_IN"
+        ? "IN_TREATMENT"
+        : v.status === "NO_SHOW"
+        ? "MISSED"
+        : "SCHEDULED") as VisitStatus,
+      notes: v.notes,
+    }));
+  }, [activePatient.visits]);
+
   const schedule: PatientCareSchedule = React.useMemo(() => {
-    const visits = [
-      ...(baseSchedule ? baseSchedule.visits : []),
-      ...(customVisits || []),
-    ].sort((a, b) => a.date.localeCompare(b.date));
+    const existingIds = new Set<string>();
+    const allCombined: PatientVisit[] = [];
+
+    // 1. Add real Supabase visits (primary source of truth)
+    for (const v of liveVisits) {
+      if (!existingIds.has(v.id)) {
+        existingIds.add(v.id);
+        allCombined.push(v);
+      }
+    }
+
+    // 2. Add demo schedule visits only if this is a known demo patient
+    if (baseSchedule?.visits) {
+      for (const v of baseSchedule.visits) {
+        if (!existingIds.has(v.id)) {
+          existingIds.add(v.id);
+          allCombined.push(v);
+        }
+      }
+    }
+
+    // 3. Add any optimistic custom visits from the active session
+    if (customVisits) {
+      for (const v of customVisits) {
+        if (!existingIds.has(v.id)) {
+          existingIds.add(v.id);
+          allCombined.push(v);
+        }
+      }
+    }
+
+    const visits = allCombined.sort((a, b) => a.date.localeCompare(b.date));
 
     return {
       id: baseSchedule?.id || `sched-${activePatient.id || "new"}`,

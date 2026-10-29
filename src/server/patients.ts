@@ -488,7 +488,7 @@ export async function getLivePatientById(idOrMrn: string): Promise<RegisteredPat
 
     // Care series computation
     const activeSeries = p.careSeries[0];
-    const totalVisits = visits.length || (activeSeries ? activeSeries.totalSessions : 1);
+    const totalVisits = visits.length || (activeSeries ? activeSeries.totalSessions : 0);
     const completedVisits = visits.filter((v) => v.status === "COMPLETED").length;
     const remainingVisits = Math.max(0, totalVisits - completedVisits);
 
@@ -512,7 +512,7 @@ export async function getLivePatientById(idOrMrn: string): Promise<RegisteredPat
       totalVisits,
       completedVisits,
       remainingVisits,
-      scheduleRef: activeSeries ? `SCH-${p.centreCode}-${activeSeries.id.slice(-3).toUpperCase()}` : `SCH-${p.centreCode}-084`,
+      scheduleRef: activeSeries ? `SCH-${p.centreCode}-${activeSeries.id.slice(-3).toUpperCase()}` : undefined,
       visits,
       commLogs,
     };

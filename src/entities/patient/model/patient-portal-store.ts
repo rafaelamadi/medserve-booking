@@ -98,7 +98,14 @@ export const usePatientPortalStore = create<PatientPortalState>((set) => ({
     }
   },
   setPatient: (patient: RegisteredPatient) => {
-    set({ patientId: patient.id, patient });
+    set((state) => {
+      const isDifferent = state.patientId !== patient.id;
+      return {
+        patientId: patient.id,
+        patient,
+        ...(isDifferent ? { customVisits: [] } : {}),
+      };
+    });
     if (typeof window !== "undefined") {
       try {
         localStorage.setItem("medserve_active_patient_id", patient.id);

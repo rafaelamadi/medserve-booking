@@ -32,6 +32,7 @@ import {
   PATIENT_SCHEDULES,
   type PatientCareSchedule,
   type PatientVisit,
+  type VisitStatus,
 } from "@/entities/care-series";
 import { usePatientPortalStore, type RegisteredPatient } from "@/entities/patient";
 import { TreatmentCalendar } from "@/widgets/treatment-calendar";
@@ -63,18 +64,72 @@ function ManageAppointmentsContent({ initialPatient }: { initialPatient?: Regist
   const [cancelReason, setCancelReason] = React.useState("");
   const [isCancelling, setIsCancelling] = React.useState(false);
 
+  // Only find matching pre-existing schedule if patient is a demo patient (e.g. pat-01), otherwise null
   const baseSchedule: PatientCareSchedule | null = React.useMemo(() => {
     return (
       PATIENT_SCHEDULES.find(
         (s) =>
           s.patientId === activePatient.id ||
-          s.patientMrn === activePatient.mrn ||
-          s.reference === activePatient.scheduleRef,
+          s.patientMrn === activePatient.mrn,
       ) || null
     );
   }, [activePatient]);
 
-  const schedule: PatientCareSchedule = React.useMemo(() => {
+  // Live visits from Supabase via getLivePatientById
+  const liveVisits: PatientVisit[] = React.useMemo(() => {
+    if (!activePatient.visits || activePatient.visits.length === 0) return [];
+    return activePatient.visits.map((v, idx) => ({
+      id: v.id,
+      visitNumber: idx + 1,
+      date: v.date,
+      timeSlot: v.timeSlot,
+      serviceName: v.serviceName,
+      room: v.room,
+      status: (v.status === "COMPLETED"
+        ? "COMPLETED"
+        : v.status === "IN_TREATMENT" || v.status === "CHECKED_IN"
+        ? "IN_TREATMENT"
+        : v.status === "NO_SHOW"
+        ? "MISSED"
+        : "SCHEDULED") as VisitStatus,
+      notes: v.notes,
+    }));
+  }, [activePatient.visits]);
+
+  // Merge Supabase visits + optional demo visits + session extra visits into 1 cohesive schedule
+  const mergedSchedule: PatientCareSchedule = React.useMemo(() => {
+    const existingIds = new Set<string>();
+    const allCombined: PatientVisit[] = [];
+
+    // 1. Live visits from Supabase (primary source of truth)
+    for (const v of liveVisits) {
+      if (!existingIds.has(v.id)) {
+        existingIds.add(v.id);
+        allCombined.push(v);
+      }
+    }
+
+    // 2. Demo visits if known demo patient
+    if (baseSchedule?.visits) {
+      for (const v of baseSchedule.visits) {
+        if (!existingIds.has(v.id)) {
+          existingIds.add(v.id);
+          allCombined.push(v);
+        }
+      }
+    }
+
+    // 3. User bookings from current session
+    const extra = [...customVisits, ...extraVisits];
+    for (const v of extra) {
+      if (!existingIds.has(v.id)) {
+        existingIds.add(v.id);
+        allCombined.push(v);
+      }
+    }
+
+    const visits = allCombined.sort((a, b) => a.date.localeCompare(b.date));
+
     return {
       id: baseSchedule?.id || `sched-${activePatient.id || "new"}`,
       reference: baseSchedule?.reference || `SER-${activePatient.mrn || "CARE"}`,
@@ -84,35 +139,29 @@ function ManageAppointmentsContent({ initialPatient }: { initialPatient?: Regist
       patientPhone: activePatient.phone || "",
       centreCode: (activePatient.centreCode as "MLCC" | "MKDC" | "MUDC") || "MLCC",
       centreName: activePatient.centreName || "MedServe Care Centre",
-      primaryService: baseSchedule?.primaryService || activePatient.primaryService || "Clinical Consultation",
+      primaryService:
+        baseSchedule?.primaryService ||
+        visits.find((v) => v.status === "SCHEDULED")?.serviceName ||
+        visits[0]?.serviceName ||
+        activePatient.primaryService ||
+        "Clinical Consultation",
       technique: baseSchedule?.technique || "Clinical Consultation & Care",
       diagnosis: baseSchedule?.diagnosis || "Specialist Care",
       room: baseSchedule?.room || "",
       doctorInCharge: baseSchedule?.doctorInCharge || "Clinical Care Team",
-      totalVisits: baseSchedule?.totalVisits || 0,
+      totalVisits: baseSchedule?.totalVisits || (visits.length > 0 ? visits.length : 0),
       completedVisits: baseSchedule?.completedVisits || 0,
-      remainingVisits: baseSchedule?.remainingVisits || 0,
-      nextVisitDate: baseSchedule?.nextVisitDate || "",
-      nextVisitTime: baseSchedule?.nextVisitTime || "",
+      remainingVisits: Math.max(0, (visits.length > 0 ? visits.length : 0) - (baseSchedule?.completedVisits || 0)),
+      nextVisitDate: visits.find((v) => v.status === "SCHEDULED")?.date || visits[0]?.date || "",
+      nextVisitTime: visits.find((v) => v.status === "SCHEDULED")?.timeSlot || visits[0]?.timeSlot || "",
       pattern: baseSchedule?.pattern || "CUSTOM_DATES",
-      startDate: baseSchedule?.startDate || "",
-      projectedEndDate: baseSchedule?.projectedEndDate || "",
+      startDate: baseSchedule?.startDate || (visits[0]?.date || ""),
+      projectedEndDate: baseSchedule?.projectedEndDate || (visits[visits.length - 1]?.date || ""),
       status: baseSchedule?.status || "ACTIVE",
       hasRescheduleRequest: false,
-      visits: baseSchedule?.visits || [],
+      visits,
     };
-  }, [baseSchedule, activePatient]);
-
-  // Merge past encounters + future chemotherapy visits + extra user bookings into 1 cohesive schedule
-  const mergedSchedule: PatientCareSchedule = React.useMemo(() => {
-    const combinedExtra = [...customVisits, ...extraVisits];
-    const existingIds = new Set(schedule.visits.map((v) => v.id));
-    const uniqueExtra = combinedExtra.filter((v) => !existingIds.has(v.id));
-    return {
-      ...schedule,
-      visits: [...schedule.visits, ...uniqueExtra].sort((a, b) => a.date.localeCompare(b.date)),
-    };
-  }, [schedule, customVisits, extraVisits]);
+  }, [liveVisits, baseSchedule, customVisits, extraVisits, activePatient]);
 
   const allVisits = React.useMemo(() => {
     return mergedSchedule.visits;
@@ -131,10 +180,10 @@ function ManageAppointmentsContent({ initialPatient }: { initialPatient?: Regist
       date: upcoming.date,
       timeSlot: upcoming.timeSlot,
       service: upcoming.serviceName || activePatient.primaryService || "Clinical Session",
-      room: schedule.room || "",
+      room: mergedSchedule.room || "",
       visitNumber: upcoming.visitNumber,
     };
-  }, [hasAppointments, allVisits, schedule.room, activePatient.primaryService]);
+  }, [hasAppointments, allVisits, mergedSchedule.room, activePatient.primaryService]);
 
   const filteredVisits = React.useMemo(() => {
     if (filter === "UPCOMING") {
@@ -239,7 +288,7 @@ function ManageAppointmentsContent({ initialPatient }: { initialPatient?: Regist
 
             <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2 border-t border-border/40">
               <Clock className="size-3.5 text-primary" />
-              <span>Centre: {schedule.centreName}. Arrive 15 mins prior for check-in and vitals verification.</span>
+              <span>Centre: {mergedSchedule.centreName}. Arrive 15 mins prior for check-in and vitals verification.</span>
             </div>
           </div>
 
@@ -269,7 +318,7 @@ function ManageAppointmentsContent({ initialPatient }: { initialPatient?: Regist
               </div>
               <div className="flex justify-between">
                 <span>Target End Date:</span>
-                <strong className="text-foreground font-semibold">{schedule.projectedEndDate || "—"}</strong>
+                <strong className="text-foreground font-semibold">{mergedSchedule.projectedEndDate || "—"}</strong>
               </div>
             </div>
           </div>
@@ -441,7 +490,7 @@ function ManageAppointmentsContent({ initialPatient }: { initialPatient?: Regist
                       </div>
 
                       <div className="flex flex-wrap items-center gap-x-3 text-xs text-muted-foreground">
-                        <span>Centre: {schedule.centreName}</span>
+                        <span>Centre: {mergedSchedule.centreName}</span>
                         {visit.notes && (
                           <>
                             <span>·</span>
@@ -507,7 +556,7 @@ function ManageAppointmentsContent({ initialPatient }: { initialPatient?: Regist
             <div className="p-3.5 rounded-xl border bg-muted/30 text-xs space-y-1 font-mono">
               <div><strong>Session:</strong> Chemotherapy #{visitToCancel?.visitNumber} ({visitToCancel?.serviceName})</div>
               <div><strong>Date & Time:</strong> {visitToCancel?.date} at {visitToCancel?.timeSlot}</div>
-              <div><strong>Centre:</strong> {schedule.centreName}</div>
+              <div><strong>Centre:</strong> {mergedSchedule.centreName}</div>
             </div>
 
             <div className="p-3 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-300 text-xs leading-relaxed">
@@ -624,12 +673,12 @@ function ManageAppointmentsContent({ initialPatient }: { initialPatient?: Regist
       <PatientBookingDialog
         open={bookingOpen}
         onOpenChange={setBookingOpen}
-        patient={patient}
-        defaultCentreCode={(patient.centreCode as "MLCC" | "MKDC" | "MUDC") || "MLCC"}
+        patient={activePatient}
+        defaultCentreCode={(activePatient.centreCode as "MLCC" | "MKDC" | "MUDC") || "MLCC"}
         onBookingSuccess={(bkg: PublicBookingRecord) => {
           const newVisit: PatientVisit = {
             id: `vis-bkg-${Date.now()}`,
-            visitNumber: (schedule.visits?.length || 0) + extraVisits.length + 1,
+            visitNumber: (mergedSchedule.visits?.length || 0) + extraVisits.length + 1,
             date: bkg.date,
             timeSlot: bkg.timeSlot,
             serviceName: bkg.serviceName,
