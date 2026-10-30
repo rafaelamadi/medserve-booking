@@ -604,7 +604,9 @@ export function TreatmentCalendar({ schedule, onOpenPass }: TreatmentCalendarPro
                                   : "bg-primary/10 text-primary border border-primary/25"
                             }`}
                           >
-                            {visit.visitNumber ? `Chemotherapy #${visit.visitNumber}` : visit.serviceName}
+                            {(visit.serviceName || "").toLowerCase().includes("chemo") && visit.visitNumber
+                              ? `Chemotherapy #${visit.visitNumber}`
+                              : visit.serviceName}
                           </Badge>
                           <div className="text-xs font-semibold text-foreground flex items-center gap-1 font-mono">
                             <Clock className="size-3 text-muted-foreground" />
@@ -666,13 +668,17 @@ export function TreatmentCalendar({ schedule, onOpenPass }: TreatmentCalendarPro
                           ? "Delivered Session"
                           : "Scheduled Appointment"}
                     </span>
-                    {currentDayVisit.visitNumber ? (
+                    {currentDayVisit.visitNumber && (currentDayVisit.serviceName || "").toLowerCase().includes("chemo") ? (
                       <Badge variant="outline" className="text-[10px] font-mono">
-                        Chemotherapy #{currentDayVisit.visitNumber} of 25
+                        Chemotherapy #{currentDayVisit.visitNumber} of {schedule.totalVisits || 25}
+                      </Badge>
+                    ) : currentDayVisit.visitNumber && (currentDayVisit.serviceName || "").toLowerCase().includes("radio") ? (
+                      <Badge variant="outline" className="text-[10px] font-mono">
+                        Radiotherapy #{currentDayVisit.visitNumber} of {schedule.totalVisits || 20}
                       </Badge>
                     ) : (
                       <Badge variant="outline" className="text-[10px] font-mono bg-primary/10 text-primary border-primary/30">
-                        Confirmed Appointment
+                        Confirmed · {currentDayVisit.serviceName}
                       </Badge>
                     )}
                   </div>

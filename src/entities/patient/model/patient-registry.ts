@@ -32,8 +32,8 @@ export interface RegisteredPatient {
   email: string;
   address?: string | null;
   state?: string | null;
-  centreCode: "MLCC" | "MKDC" | "MUDC";
-  centreName: string;
+  centreCode?: "MLCC" | "MKDC" | "MUDC" | null;
+  centreName?: string | null;
   primaryDiagnosis: string;
   primaryService: string;
   doctorInCharge: string;

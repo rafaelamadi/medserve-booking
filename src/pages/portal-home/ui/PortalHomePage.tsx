@@ -150,8 +150,8 @@ export function PatientHomeContent({ initialPatient }: { initialPatient?: Regist
       patientMrn: activePatient.mrn || "",
       patientName: activePatient.fullName || "",
       patientPhone: activePatient.phone || "",
-      centreCode: (activePatient.centreCode as "MLCC" | "MKDC" | "MUDC") || "MLCC",
-      centreName: activePatient.centreName || "MedServe Care Centre",
+      centreCode: (activePatient.centreCode as "MLCC" | "MKDC" | "MUDC") || (visits[0]?.room?.includes("Kano") ? "MKDC" : visits[0]?.room?.includes("Umuahia") ? "MUDC" : "MLCC"),
+      centreName: activePatient.centreName || visits[0]?.room || "MedServe Medical Centre",
       primaryService:
         baseSchedule?.primaryService ||
         visits.find((v) => v.status === "SCHEDULED")?.serviceName ||
@@ -160,7 +160,7 @@ export function PatientHomeContent({ initialPatient }: { initialPatient?: Regist
         "Clinical Consultation",
       technique: baseSchedule?.technique || "Clinical Consultation & Care",
       diagnosis: baseSchedule?.diagnosis || "Specialist Care",
-      room: baseSchedule?.room || "",
+      room: baseSchedule?.room || visits[0]?.room || "",
       doctorInCharge: baseSchedule?.doctorInCharge || "Clinical Care Team",
       totalVisits: baseSchedule?.totalVisits || (visits.length > 0 ? visits.length : 0),
       completedVisits: baseSchedule?.completedVisits || 0,
@@ -186,10 +186,10 @@ export function PatientHomeContent({ initialPatient }: { initialPatient?: Regist
       date: upcoming.date,
       timeSlot: upcoming.timeSlot,
       service: upcoming.serviceName || activePatient.primaryService || "Clinical Session",
-      room: schedule.room || "",
+      room: upcoming.room || schedule.room || schedule.centreName || "MedServe Medical Centre",
       visitNumber: upcoming.visitNumber,
     };
-  }, [hasAppointments, schedule.visits, schedule.room, activePatient.primaryService]);
+  }, [hasAppointments, schedule.visits, schedule.room, schedule.centreName, activePatient.primaryService]);
 
   return (
     <div className="@container/main flex flex-col gap-8 max-w-6xl mx-auto w-full py-2">
@@ -290,7 +290,7 @@ export function PatientHomeContent({ initialPatient }: { initialPatient?: Regist
 
           <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2 border-t border-border/40">
             <Clock className="size-3.5 text-primary" />
-            <span>Centre: {schedule.centreName}. Please arrive 15 minutes prior for check-in and vitals verification.</span>
+            <span>Centre: {nextVisit.room || schedule.centreName}. Please arrive 15 minutes prior for check-in and vitals verification.</span>
           </div>
         </div>
       ) : (

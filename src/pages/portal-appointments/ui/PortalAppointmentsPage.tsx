@@ -169,8 +169,8 @@ function ManageAppointmentsContent({ initialPatient }: { initialPatient?: Regist
       patientMrn: activePatient.mrn || "",
       patientName: activePatient.fullName || "",
       patientPhone: activePatient.phone || "",
-      centreCode: (activePatient.centreCode as "MLCC" | "MKDC" | "MUDC") || "MLCC",
-      centreName: activePatient.centreName || "MedServe Care Centre",
+      centreCode: (activePatient.centreCode as "MLCC" | "MKDC" | "MUDC") || (visits[0]?.room?.includes("Kano") ? "MKDC" : visits[0]?.room?.includes("Umuahia") ? "MUDC" : "MLCC"),
+      centreName: activePatient.centreName || visits[0]?.room || "MedServe Medical Centre",
       primaryService:
         baseSchedule?.primaryService ||
         visits.find((v) => v.status === "SCHEDULED")?.serviceName ||
@@ -179,7 +179,7 @@ function ManageAppointmentsContent({ initialPatient }: { initialPatient?: Regist
         "Clinical Consultation",
       technique: baseSchedule?.technique || "Clinical Consultation & Care",
       diagnosis: baseSchedule?.diagnosis || "Specialist Care",
-      room: baseSchedule?.room || "",
+      room: baseSchedule?.room || visits[0]?.room || "",
       doctorInCharge: baseSchedule?.doctorInCharge || "Clinical Care Team",
       totalVisits: baseSchedule?.totalVisits || (visits.length > 0 ? visits.length : 0),
       completedVisits: baseSchedule?.completedVisits || 0,
@@ -213,10 +213,10 @@ function ManageAppointmentsContent({ initialPatient }: { initialPatient?: Regist
       date: upcoming.date,
       timeSlot: upcoming.timeSlot,
       service: upcoming.serviceName || activePatient.primaryService || "Clinical Session",
-      room: mergedSchedule.room || "",
+      room: upcoming.room || mergedSchedule.room || mergedSchedule.centreName || "MedServe Medical Centre",
       visitNumber: upcoming.visitNumber,
     };
-  }, [hasAppointments, allVisits, mergedSchedule.room, activePatient.primaryService]);
+  }, [hasAppointments, allVisits, mergedSchedule.room, mergedSchedule.centreName, activePatient.primaryService]);
 
   const filteredVisits = React.useMemo(() => {
     if (filter === "UPCOMING") {
@@ -246,7 +246,7 @@ function ManageAppointmentsContent({ initialPatient }: { initialPatient?: Regist
       setIsCancelling(false);
       setCancelOpen(false);
       toast.success("Cancellation Submitted", {
-        description: `Your request to cancel Chemotherapy #${visitToCancel?.visitNumber} on ${visitToCancel?.date} has been logged. Our clinical coordinator will follow up.`,
+        description: `Your request to cancel ${visitToCancel?.serviceName || "appointment"} on ${visitToCancel?.date} has been logged. Our clinical coordinator will follow up.`,
       });
     }, 600);
   };
@@ -319,7 +319,7 @@ function ManageAppointmentsContent({ initialPatient }: { initialPatient?: Regist
 
           <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2 border-t border-border/40">
             <Clock className="size-3.5 text-primary" />
-            <span>Centre: {mergedSchedule.centreName}. Arrive 15 mins prior for check-in and vitals verification.</span>
+            <span>Centre: {nextVisit.room || mergedSchedule.centreName}. Arrive 15 mins prior for check-in and vitals verification.</span>
           </div>
         </div>
       ) : (
@@ -477,7 +477,7 @@ function ManageAppointmentsContent({ initialPatient }: { initialPatient?: Regist
                       </div>
 
                       <div className="flex flex-wrap items-center gap-x-3 text-xs text-muted-foreground">
-                        <span>Centre: {mergedSchedule.centreName}</span>
+                        <span>Centre: {visit.room || mergedSchedule.centreName}</span>
                         {visit.notes && (
                           <>
                             <span>·</span>
@@ -541,9 +541,9 @@ function ManageAppointmentsContent({ initialPatient }: { initialPatient?: Regist
 
           <form onSubmit={handleConfirmCancel} className="space-y-4 pt-2">
             <div className="p-3.5 rounded-xl border bg-muted/30 text-xs space-y-1 font-mono">
-              <div><strong>Session:</strong> Chemotherapy #{visitToCancel?.visitNumber} ({visitToCancel?.serviceName})</div>
+              <div><strong>Session:</strong> {visitToCancel?.serviceName}</div>
               <div><strong>Date & Time:</strong> {visitToCancel?.date} at {visitToCancel?.timeSlot}</div>
-              <div><strong>Centre:</strong> {mergedSchedule.centreName}</div>
+              <div><strong>Centre:</strong> {visitToCancel?.room || mergedSchedule.centreName}</div>
             </div>
 
             <div className="p-3 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-300 text-xs leading-relaxed">
