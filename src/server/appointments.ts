@@ -215,20 +215,26 @@ export async function createStaffAppointmentServer(
       return { ok: false, error: `Centre '${input.centreCode}' not found.` };
     }
 
-    // Match service by name or slug
-    let cs = centre.centreServices.find(
-      (item) => item.service.name.toLowerCase() === input.serviceName.toLowerCase()
-    );
-    if (!cs) {
-      cs = centre.centreServices.find(
-        (item) => item.service.slug.toLowerCase() === input.serviceName.toLowerCase().replace(/\s+/g, "-")
+    // Match service by normalized name or slug (handling variations like "MRI" vs "MRI Scan")
+    const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+    const targetNorm = normalize(input.serviceName);
+    const targetWithoutScan = normalize(input.serviceName.replace(/\bscan\b/gi, ""));
+
+    let cs = centre.centreServices.find((item) => {
+      const nameNorm = normalize(item.service.name);
+      const slugNorm = normalize(item.service.slug);
+      return (
+        nameNorm === targetNorm ||
+        slugNorm === targetNorm ||
+        nameNorm === targetWithoutScan ||
+        slugNorm === targetWithoutScan ||
+        targetNorm.startsWith(nameNorm) ||
+        nameNorm.startsWith(targetNorm)
       );
-    }
-    if (!cs && centre.centreServices.length > 0) {
-      cs = centre.centreServices[0];
-    }
+    });
+
     if (!cs) {
-      return { ok: false, error: "No clinical service configured for this centre." };
+      return { ok: false, error: `Service '${input.serviceName}' is not available at ${centre.name}.` };
     }
 
     // Calculate startsAt and endsAt in centre timezone

@@ -127,10 +127,15 @@ export function PatientHomeContent({ initialPatient }: { initialPatient?: Regist
       }
     }
 
-    // 3. Add any optimistic custom visits or extra visits from active session
+    // 3. Add any optimistic custom visits or extra visits from active session (deduplicated against live DB)
     const extra = [...(customVisits || []), ...extraVisits];
     for (const v of extra) {
-      if (!existingIds.has(v.id)) {
+      const isDuplicate = allCombined.some(
+        (existing) =>
+          existing.id === v.id ||
+          (existing.date === v.date && existing.timeSlot === v.timeSlot)
+      );
+      if (!isDuplicate && !existingIds.has(v.id)) {
         existingIds.add(v.id);
         allCombined.push(v);
       }

@@ -225,7 +225,7 @@ export function PatientBookingDialog({
       date: selectedDate,
       timeSlot: selectedTime,
       serviceName: selectedService.name,
-      room: "Consulting Room",
+      room: selectedCentre.name,
       status: "SCHEDULED",
       notes: notes ? `${notes} (${reference})` : `Booked appointment #${reference}`,
     };

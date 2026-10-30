@@ -499,7 +499,13 @@ export function TreatmentCalendar({ schedule, onOpenPass }: TreatmentCalendarPro
                         {cell.visits.map((v) => {
                           const isVNext = v.status === "IN_TREATMENT" || v.visitNumber === 15;
                           const isVCompleted = v.status === "COMPLETED";
-                          const label = v.visitNumber ? `Chemo #${v.visitNumber}` : v.serviceName;
+                          const isSeries =
+                            (v.serviceName || "").toLowerCase().includes("chemo") ||
+                            (v.serviceName || "").toLowerCase().includes("radio");
+                          const label =
+                            isSeries && v.visitNumber
+                              ? `${v.serviceName.toLowerCase().includes("chemo") ? "Chemo" : "Rad"} #${v.visitNumber}`
+                              : v.serviceName;
 
                           return (
                             <div key={v.id} className="space-y-0.5">
@@ -752,13 +758,17 @@ export function TreatmentCalendar({ schedule, onOpenPass }: TreatmentCalendarPro
                     ? "Completed Session"
                     : "Scheduled Appointment"}
               </span>
-              {selectedVisit.visitNumber ? (
+              {selectedVisit.visitNumber && (selectedVisit.serviceName || "").toLowerCase().includes("chemo") ? (
                 <Badge variant="outline" className="text-[10px] font-mono">
-                  Chemotherapy #{selectedVisit.visitNumber} of 25
+                  Chemotherapy #{selectedVisit.visitNumber} of {schedule.totalVisits || 25}
+                </Badge>
+              ) : selectedVisit.visitNumber && (selectedVisit.serviceName || "").toLowerCase().includes("radio") ? (
+                <Badge variant="outline" className="text-[10px] font-mono">
+                  Radiotherapy #{selectedVisit.visitNumber} of {schedule.totalVisits || 20}
                 </Badge>
               ) : (
                 <Badge variant="outline" className="text-[10px] font-mono bg-primary/10 text-primary border-primary/30">
-                  Confirmed Appointment
+                  Confirmed · {selectedVisit.serviceName}
                 </Badge>
               )}
             </div>
@@ -766,7 +776,7 @@ export function TreatmentCalendar({ schedule, onOpenPass }: TreatmentCalendarPro
               {selectedVisit.date} at {selectedVisit.timeSlot} · {selectedVisit.serviceName}
             </div>
             <div className="flex flex-wrap items-center gap-x-3 text-xs text-muted-foreground">
-              <span>Centre: {schedule.centreName}</span>
+              <span>Centre: {selectedVisit.room || schedule.centreName}</span>
               {selectedVisit.notes && (
                 <>
                   <span>·</span>

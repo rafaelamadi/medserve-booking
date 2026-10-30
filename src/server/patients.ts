@@ -69,11 +69,7 @@ export async function getLivePatients(centreCode?: string): Promise<RegisteredPa
     });
 
     return dbPatients.map((p) => {
-      const numericSeed = Math.abs(
-        p.phone?.split("").reduce((acc, c) => acc * 31 + c.charCodeAt(0), 0) || 100000
-      );
-      const generatedMrn = `MS-${100000 + (numericSeed % 900000)}`;
-      const mrn = p.mrn || generatedMrn;
+      const mrn = p.mrn || "MS-PENDING";
 
       const visits: PatientVisitHistory[] = p.appointments.map((apt) => ({
         id: apt.id,
@@ -85,7 +81,7 @@ export async function getLivePatients(centreCode?: string): Promise<RegisteredPa
           hour12: true,
         }),
         serviceName: apt.centreService?.service?.name || "Consultation",
-        room: apt.resource?.name || apt.centre?.name || "Consultation Suite 1",
+        room: apt.resource?.name || apt.centre?.name || "Consultation Suite",
         status:
           apt.status === "COMPLETED"
             ? "COMPLETED"
@@ -94,7 +90,7 @@ export async function getLivePatients(centreCode?: string): Promise<RegisteredPa
             : apt.status === "CANCELLED"
             ? "NO_SHOW"
             : "SCHEDULED",
-        doctor: (p as any).doctorInCharge || "Dr. Kachi",
+        doctor: (p as any).doctorInCharge || "Attending Oncologist",
         notes: apt.internalNote || apt.patientNote || `Clinical appointment recorded at ${apt.centre?.name || "MedServe"}.`,
       }));
 
@@ -128,7 +124,7 @@ export async function getLivePatients(centreCode?: string): Promise<RegisteredPa
         centreName: p.centreName || "MedServe LUTH Cancer Centre",
         primaryDiagnosis: p.primaryDiagnosis || "General Clinical Record",
         primaryService: p.primaryService || "Outpatient Care",
-        doctorInCharge: (p as any).doctorInCharge || "Dr. Kachi",
+        doctorInCharge: (p as any).doctorInCharge || "Attending Oncologist",
         status: (p.status as any) || "ACTIVE",
         registrationDate: p.createdAt.toISOString().slice(0, 10),
         totalVisits: visits.length,
@@ -434,7 +430,7 @@ export async function getLivePatientById(idOrMrn: string): Promise<RegisteredPat
         hour12: true,
       }),
       serviceName: apt.centreService?.service?.name || "Consultation",
-      room: apt.resource?.name || apt.centre?.name || "Consultation Suite 1",
+      room: apt.resource?.name || apt.centre?.name || "Consultation Suite",
       status:
         apt.status === "COMPLETED"
           ? "COMPLETED"
